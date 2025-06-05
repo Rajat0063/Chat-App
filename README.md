@@ -91,10 +91,11 @@ This project requires the following dependencies:
 
 Run the project with:
 
-Using [npm](https://www.npmjs.com/):
+   Using [npm](https://www.npmjs.com/):
 
-```bash
-npm run dev
+   ```bash
+   npm run dev
+   
 
 ---
 
