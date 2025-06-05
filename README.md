@@ -36,13 +36,21 @@ _Connect Instantly, Communicate Effortlessly, Engage Deeply_
 
 ---
 
-### 📚 Table of Contents
+<details>
+  <summary><strong>📚 Table of Contents</strong></summary>
 
-- [Overview](#why-chat-app)
-- [Getting Started](#getting-started)
-  - [Prerequisites](#prerequisites)
-  - [Installation](#installation)
-  - [Usage](#usage)
+- [🚀 Overview](#why-chat-app)
+- [🛠️ Getting Started](#getting-started)
+  - [📦 Prerequisites](#prerequisites)
+  - [⚙️ Installation](#installation)
+  - [🧪 Usage](#usage)
+- [📂 Folder Structure](#folder-structure)
+- [📸 Screenshots](#screenshots)
+- [🛡️ License](#license)
+- [👨‍💻 Author](#author)
+- [🔝 Return to Top](#chat-app)
+
+</details>
 
 ---
 
@@ -99,5 +107,16 @@ This project requires the following dependencies:
   npm run dev
 
 ---
+
+## 📂 Folder Structure
+
+```text
+Chat-App/
+├── backend/
+├── frontend/
+├── .gitignore
+├── package.json
+└── README.md
+```
 
 [🔝 Return to Top](#chat-app)
