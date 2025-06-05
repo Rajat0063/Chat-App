@@ -70,6 +70,27 @@ This project requires the following dependencies:
 1. Clone the repository:
 
    ```bash
-   > git clone https://github.com/Rajat0063/Chat-App.git
+    git clone https://github.com/Rajat0063/Chat-App.git
 
 2. Navigate the to the project directory:
+
+   ```bash
+    cd Chat-App
+
+3. Install the dependencies:
+
+    Using npm
+
+    ```bash
+    npm install
+
+Usage
+
+Run the project with:
+
+Using npm
+
+```bash
+npm run dev
+
+
