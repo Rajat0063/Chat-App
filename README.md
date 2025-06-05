@@ -119,4 +119,24 @@ Chat-App/
 └── README.md
 ```
 
+---
+
+## 📸 Screenshots
+
+_Add screenshots or GIFs here to demonstrate features._
+
+---
+
+## 📝 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+---
+
+## 👤 Author
+
+**Rajat Yadav** – [@Rajat0063](https://github.com/Rajat0063)
+
+---
+
 [🔝 Return to Top](#chat-app)
