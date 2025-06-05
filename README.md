@@ -46,7 +46,6 @@ _Connect Instantly, Communicate Effortlessly, Engage Deeply_
   - [🧪 Usage](#usage)
 - [📂 Folder Structure](#folder-structure)
 - [📸 Screenshots](#screenshots)
-- [🛡️ License](#license)
 - [👨‍💻 Author](#author)
 - [🔝 Return to Top](#chat-app)
 
@@ -112,6 +111,7 @@ This project requires the following dependencies:
 
 ```text
 Chat-App/
+├── assets/
 ├── backend/
 ├── frontend/
 ├── .gitignore
@@ -123,13 +123,11 @@ Chat-App/
 
 ### 📸 Screenshots
 
-_Add screenshots or GIFs here to demonstrate features._
+![Login Page](./assets/login.png)
+*Login screen with authentication*
 
----
-
-### 📝 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+![Chat Window](./assets/chat.png)
+*Real-time chat in action*
 
 ---
 
