@@ -2,9 +2,11 @@
 
 _Connect Instantly, Communicate Effortlessly, Engage Deeply_
 
-![Last Commit](https://img.shields.io/badge/last%20commit-december%202024-blue) 
-![Language](https://img.shields.io/badge/javascript-99.3%25-yellow) 
-![Languages](https://img.shields.io/badge/languages-3-blue)
+<p align="center">
+  <img src="https://img.shields.io/badge/last%20commit-december%202024-blue" />
+  <img src="https://img.shields.io/badge/javascript-99.3%25-yellow" />
+  <img src="https://img.shields.io/badge/languages-3-blue" />
+</p>
 
 ---
 
