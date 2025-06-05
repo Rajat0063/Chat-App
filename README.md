@@ -41,7 +41,6 @@ _Connect Instantly, Communicate Effortlessly, Engage Deeply_
   - [Prerequisites](#prerequisites)
   - [Installation](#installation)
   - [Usage](#usage)
-  - [Testing](#testing)
 
 ---
 
@@ -71,12 +70,12 @@ This project requires the following dependencies:
 
 ### Installation
 
-1. Clone the repository:
+1. **Clone the repository:**
 
    ```bash
     git clone https://github.com/Rajat0063/Chat-App.git
 
-2. Navigate the to the project directory:
+2. **Navigate the to the project directory:**
 
    ```bash
     cd Chat-App
@@ -92,8 +91,11 @@ This project requires the following dependencies:
 
 Run the project with:
 
-Using npm
+Using [npm](https://www.npmjs.com/):
 
 ```bash
 npm run dev
 
+---
+
+[🔝 Return to Top](#chat-app)
