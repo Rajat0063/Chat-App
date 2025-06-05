@@ -6,7 +6,7 @@
 
 _Connect Instantly, Communicate Effortlessly, Engage Deeply_
 
-<img src="https://img.shields.io/badge/last%20commit-december%202024-blue" />
+<img src="https://img.shields.io/badge/last%20commit-may%202025-blue" />
 <img src="https://img.shields.io/badge/javascript-99.3%25-yellow" />
 <img src="https://img.shields.io/badge/languages-3-blue" />
 
