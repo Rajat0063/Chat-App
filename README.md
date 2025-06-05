@@ -70,4 +70,6 @@ This project requires the following dependencies:
 1. Clone the repository:
 
    ```bash
-   git clone https://github.com/Rajat0063/Chat-App.git
+   > git clone https://github.com/Rajat0063/Chat-App.git
+
+2. Navigate the to the project directory:
