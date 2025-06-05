@@ -12,23 +12,25 @@ _Connect Instantly, Communicate Effortlessly, Engage Deeply_
 
 ### Built with the tools and technologies:
 
-![Express](https://img.shields.io/badge/Express-black)
-![JSON](https://img.shields.io/badge/JSON-black)
-![Markdown](https://img.shields.io/badge/Markdown-black)
-![Socket.io](https://img.shields.io/badge/Socket.io-black)
-![npm](https://img.shields.io/badge/npm-red)
-![Autoprefixer](https://img.shields.io/badge/Autoprefixer-red)
-![Mongoose](https://img.shields.io/badge/Mongoose-red)
-![PostCSS](https://img.shields.io/badge/PostCSS-red)
-![.ENV](https://img.shields.io/badge/.ENV-yellow)
-![JavaScript](https://img.shields.io/badge/JavaScript-yellow)
-![Nodemon](https://img.shields.io/badge/Nodemon-green)
-![DaisyUI](https://img.shields.io/badge/DaisyUI-green)
-![React](https://img.shields.io/badge/React-blue)
-![Cloudinary](https://img.shields.io/badge/Cloudinary-blue)
-![Vite](https://img.shields.io/badge/Vite-purple)
-![ESLint](https://img.shields.io/badge/ESLint-purple)
-![Axios](https://img.shields.io/badge/Axios-purple)
+<p align="center">
+  <img src="https://img.shields.io/badge/Express-black" />
+  <img src="https://img.shields.io/badge/JSON-black" />
+  <img src="https://img.shields.io/badge/Markdown-black" />
+  <img src="https://img.shields.io/badge/Socket.io-black" />
+  <img src="https://img.shields.io/badge/npm-red" />
+  <img src="https://img.shields.io/badge/Autoprefixer-red" />
+  <img src="https://img.shields.io/badge/Mongoose-red" />
+  <img src="https://img.shields.io/badge/PostCSS-red" />
+  <img src="https://img.shields.io/badge/.ENV-yellow" />
+  <img src="https://img.shields.io/badge/JavaScript-yellow" />
+  <img src="https://img.shields.io/badge/Nodemon-green" />
+  <img src="https://img.shields.io/badge/DaisyUI-green" />
+  <img src="https://img.shields.io/badge/React-blue" />
+  <img src="https://img.shields.io/badge/Cloudinary-blue" />
+  <img src="https://img.shields.io/badge/Vite-purple" />
+  <img src="https://img.shields.io/badge/ESLint-purple" />
+  <img src="https://img.shields.io/badge/Axios-purple" />
+</p>
 
 ---
 
@@ -86,7 +88,7 @@ This project requires the following dependencies:
     ```bash
     npm install
 
-Usage
+### Usage
 
 Run the project with:
 
@@ -94,5 +96,4 @@ Using npm
 
 ```bash
 npm run dev
-
 
