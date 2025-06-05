@@ -89,7 +89,7 @@ This project requires the following dependencies:
 
 ### Usage
 
-   **Run the project with:**
+**Run the project with:**
 
 - Using [npm](https://www.npmjs.com/):
 
@@ -97,3 +97,5 @@ This project requires the following dependencies:
   npm run dev
 
 ---
+
+[🔝 Return to Top](#chat-app)
