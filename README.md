@@ -108,7 +108,7 @@ This project requires the following dependencies:
 
 ---
 
-## 📂 Folder Structure
+### 📂 Folder Structure
 
 ```text
 Chat-App/
@@ -121,19 +121,19 @@ Chat-App/
 
 ---
 
-## 📸 Screenshots
+### 📸 Screenshots
 
 _Add screenshots or GIFs here to demonstrate features._
 
 ---
 
-## 📝 License
+### 📝 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ---
 
-## 👤 Author
+### 👤 Author
 
 **Rajat Yadav** – [@Rajat0063](https://github.com/Rajat0063)
 
