@@ -81,7 +81,9 @@ This project requires the following dependencies:
    ```bash
     cd Chat-App
 
-3. **Install the dependencies** using [npm](https://www.npmjs.com/):
+3. **Install the dependencies** 
+
+   Using [npm](https://www.npmjs.com/):
 
    ```bash
    npm install
