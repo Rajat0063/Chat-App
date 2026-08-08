@@ -1,11 +1,21 @@
-import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 import {defineConfig} from 'vite';
 
+let tailwindcssPlugin: any = null;
+try {
+  const tailwindModule = await import('@tailwindcss/vite');
+  tailwindcssPlugin = tailwindModule.default;
+} catch (e) {
+  console.warn('Notice: @tailwindcss/vite not available:', e);
+}
+
 export default defineConfig(() => {
   return {
-    plugins: [react(), tailwindcss()],
+    plugins: [
+      react(),
+      ...(tailwindcssPlugin ? [tailwindcssPlugin()] : [])
+    ],
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),
