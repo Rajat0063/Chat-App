@@ -3,6 +3,12 @@ import toast from "react-hot-toast";
 import { axiosInstance } from "../lib/axios.js";
 import { useAuthStore } from "./useAuthStore.js";
 
+const appendUniqueMessage = (messages, nextMessage) => {
+  if (!nextMessage) return messages;
+  if (messages.some((message) => message?._id === nextMessage?._id)) return messages;
+  return [...messages, nextMessage];
+};
+
 export const useChatStore = create((set, get) => ({
   messages: [],
   users: [],
@@ -114,10 +120,10 @@ export const useChatStore = create((set, get) => ({
     try {
       if (selectedGroup) {
         const res = await axiosInstance.post(`/groups/${selectedGroup._id}/send`, messageData);
-        set({ messages: [...messages, res.data] });
+        set({ messages: appendUniqueMessage(messages, res.data) });
       } else if (selectedUser) {
         const res = await axiosInstance.post(`/messages/send/${selectedUser._id}`, messageData);
-        set({ messages: [...messages, res.data] });
+        set({ messages: appendUniqueMessage(messages, res.data) });
       }
     } catch (err) {
       toast.error(err?.response?.data?.message || "Failed to send");
@@ -155,9 +161,9 @@ export const useChatStore = create((set, get) => ({
     if (!socket) return;
     socket.off("newMessage");
     socket.on("newMessage", (newMessage) => {
-      const isFromSelected = newMessage.senderId === selectedUser._id;
+      const isFromSelected = newMessage.senderId === selectedUser._id || newMessage.senderId?._id === selectedUser._id;
       if (!isFromSelected) return;
-      set({ messages: [...get().messages, newMessage] });
+      set({ messages: appendUniqueMessage(get().messages, newMessage) });
     });
   },
 
@@ -169,7 +175,7 @@ export const useChatStore = create((set, get) => ({
     socket.off("newGroupMessage");
     socket.on("newGroupMessage", (newMessage) => {
       if (newMessage.groupId !== selectedGroup._id) return;
-      set({ messages: [...get().messages, newMessage] });
+      set({ messages: appendUniqueMessage(get().messages, newMessage) });
     });
   },
 
