@@ -29,8 +29,23 @@ const getTransporter = () => {
 };
 
 const getFromAddress = () => {
-  const configured = process.env.BREVO_FROM || process.env.RESEND_FROM || process.env.MAIL_FROM || process.env.MAIL_USER;
-  return configured || "Chatty <onboarding@resend.dev>";
+  const configured = [
+    process.env.BREVO_FROM,
+    process.env.RESEND_FROM,
+    process.env.MAIL_FROM,
+    process.env.MAIL_USER,
+  ].find((value) => typeof value === "string" && value.trim().length > 0);
+
+  if (!configured) {
+    throw new Error("No verified sender email configured. Set BREVO_FROM or MAIL_FROM in Render.");
+  }
+
+  const parsed = normalizeAddress(configured, "Chatty");
+  if (!parsed || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(parsed.address)) {
+    throw new Error("Invalid sender email. Set BREVO_FROM / MAIL_FROM to a verified email address.");
+  }
+
+  return parsed.address;
 };
 
 const sendWithBrevo = async ({ to, subject, text, html }) => {
