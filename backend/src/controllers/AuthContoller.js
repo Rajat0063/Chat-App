@@ -143,7 +143,13 @@ export const login = async (req, res) => {
 
 /* ---------- Logout ---------- */
 export const logout = (_req, res) => {
-  res.cookie("jwt", "", { maxAge: 0 });
+  res.cookie("jwt", "", {
+    maxAge: 0,
+    httpOnly: true,
+    sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+    secure: process.env.NODE_ENV === "production" || Boolean(process.env.RENDER) || Boolean(process.env.VERCEL),
+    path: "/",
+  });
   res.status(200).json({ message: "Logged out" });
 };
 
@@ -223,7 +229,13 @@ export const updateProfile = async (req, res) => {
 export const deleteAccount = async (req, res) => {
   try {
     await User.findByIdAndDelete(req.user._id);
-    res.cookie("jwt", "", { maxAge: 0 });
+    res.cookie("jwt", "", {
+      maxAge: 0,
+      httpOnly: true,
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+      secure: process.env.NODE_ENV === "production" || Boolean(process.env.RENDER) || Boolean(process.env.VERCEL),
+      path: "/",
+    });
     res.json({ message: "Account deleted" });
   } catch (err) {
     console.log("deleteAccount error:", err.message);
