@@ -3,7 +3,7 @@ import crypto from "crypto";
 import jwt from "jsonwebtoken";
 import User from "../models/UserModel.js";
 import Otp from "../models/OtpModel.js";
-import { generateToken, generateOtp } from "../lib/utils.js";
+import { generateToken, generateOtp, getCookieOptions } from "../lib/utils.js";
 import { sendOtpEmail, sendResetEmail } from "../lib/mailer.js";
 
 /* ---------- Signup: create OTP, send email ---------- */
@@ -144,11 +144,8 @@ export const login = async (req, res) => {
 /* ---------- Logout ---------- */
 export const logout = (_req, res) => {
   res.cookie("jwt", "", {
+    ...getCookieOptions(),
     maxAge: 0,
-    httpOnly: true,
-    sameSite: "none",
-    secure: true,
-    path: "/",
   });
   res.status(200).json({ message: "Logged out" });
 };
@@ -230,11 +227,8 @@ export const deleteAccount = async (req, res) => {
   try {
     await User.findByIdAndDelete(req.user._id);
     res.cookie("jwt", "", {
+      ...getCookieOptions(),
       maxAge: 0,
-      httpOnly: true,
-      sameSite: "none",
-      secure: true,
-      path: "/",
     });
     res.json({ message: "Account deleted" });
   } catch (err) {
