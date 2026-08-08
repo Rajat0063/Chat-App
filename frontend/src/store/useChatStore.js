@@ -17,9 +17,16 @@ export const useChatStore = create((set, get) => ({
     set({ isUsersLoading: true });
     try {
       const res = await axiosInstance.get("/messages/users");
+      const nextUsers = res.data.users || [];
+      const nextBlockedUsers = (res.data.blockedUsers || []).map((id) => id.toString());
+      const currentSelectedUser = get().selectedUser;
+
       set({
-        users: res.data.users,
-        blockedUsers: (res.data.blockedUsers || []).map((id) => id.toString()),
+        users: nextUsers,
+        blockedUsers: nextBlockedUsers,
+        selectedUser: currentSelectedUser && nextUsers.some((u) => u._id === currentSelectedUser._id)
+          ? currentSelectedUser
+          : nextUsers.length ? nextUsers[0] : null,
       });
     } catch (err) {
       toast.error(err?.response?.data?.message || "Failed to load users");
