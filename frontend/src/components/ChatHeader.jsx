@@ -89,15 +89,6 @@ export default function ChatHeader() {
   };
 
   const handleGroupRename = async () => {
-            {isGroupOwner && (
-              <button type="button" onClick={() => openConfirmDialog({
-                title: "Delete group",
-                message: "This will delete the group for all members. Are you sure?",
-                action: async () => { await deleteGroup(selectedGroup._id); setSelectedGroup(null); },
-                actionLabel: "Delete"
-              })} className="w-full text-left px-4 py-3 text-error hover:bg-error/10">Delete group</button>
-            )}
-            <button type="button" onClick={async () => { setMenuOpen(false); await leaveGroup(selectedGroup._id); setSelectedGroup(null); }} className="w-full text-left px-4 py-3 text-error hover:bg-error/10">Leave group</button>
     setActionLoading(true);
     await updateGroup(selectedGroup._id, { name: groupName.trim() });
     setActionLoading(false);
@@ -115,13 +106,12 @@ export default function ChatHeader() {
   const groupMemberIds = new Set((selectedGroup?.members || []).map((member) => typeof member === "string" ? member : member._id?.toString()));
   const availableUsers = users.filter((user) => !groupMemberIds.has(user._id?.toString()));
 
-
   useEffect(() => {
     if (!menuOpen) return setMenuPos(null);
     const btn = buttonRef.current;
     if (!btn) return;
     const rect = btn.getBoundingClientRect();
-    const width = 224; // w-56
+    const width = 224;
     const left = Math.max(8, rect.right - width + window.scrollX);
     const top = rect.bottom + 8 + window.scrollY;
     setMenuPos({ left, top });
@@ -178,6 +168,14 @@ export default function ChatHeader() {
               action: handleClearGroupConversation,
               actionLabel: "Clear"
             })} disabled={actionLoading} className="w-full text-left px-4 py-3 hover:bg-base-200">Clear conversation</button>
+            {isGroupOwner && (
+              <button type="button" onClick={() => openConfirmDialog({
+                title: "Delete group",
+                message: "This will delete the group for all members. Are you sure?",
+                action: async () => { await deleteGroup(selectedGroup._id); setSelectedGroup(null); },
+                actionLabel: "Delete"
+              })} className="w-full text-left px-4 py-3 text-error hover:bg-error/10">Delete group</button>
+            )}
             <button type="button" onClick={async () => { setMenuOpen(false); await leaveGroup(selectedGroup._id); setSelectedGroup(null); }} className="w-full text-left px-4 py-3 text-error hover:bg-error/10">Leave group</button>
           </>
         )}
@@ -235,7 +233,7 @@ export default function ChatHeader() {
             <X />
           </button>
 
-{renderMenu()}
+          {renderMenu()}
         </div>
       </div>
 

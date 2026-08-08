@@ -12,7 +12,7 @@ import VerifyOtpPage from "./pages/VerifyOtpPage.jsx";
 import ForgotPasswordPage from "./pages/ForgotPasswordPage.jsx";
 import ResetPasswordPage from "./pages/ResetPasswordPage.jsx";
 import ProfilePage from "./pages/ProfilePage.jsx";
-import SettingsPage from "./pages/SettingPage.jsx";
+import SettingsPage from "./pages/SettingsPage.jsx";
 
 import { useAuthStore } from "./store/useAuthStore.js";
 import { useThemeStore } from "./store/useThemeStore.js";

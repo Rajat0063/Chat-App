@@ -6,7 +6,6 @@ export default function Navbar() {
   const { authUser, logout } = useAuthStore();
   const { pathname } = useLocation();
 
-  // Don't show navbar on auth pages for cleaner look (Settings allowed everywhere)
   return (
     <header className="bg-base-100/80 backdrop-blur-lg border-b border-base-300 sticky top-0 z-40">
       <div className="container mx-auto px-4 h-16">

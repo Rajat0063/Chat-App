@@ -7,8 +7,8 @@ import { useAuthStore } from "../store/useAuthStore.js";
 import { formatMessageTime } from "../lib/utils.js";
 
 export default function ChatContainer() {
-    const { messages, getMessages, getGroupMessages, isMessagesLoading, selectedUser, selectedGroup,
-      subscribeToMessages, unsubscribeFromMessages, subscribeToGroupMessages } = useChatStore();
+  const { messages, getMessages, getGroupMessages, isMessagesLoading, selectedUser, selectedGroup,
+    subscribeToMessages, unsubscribeFromMessages, subscribeToGroupMessages } = useChatStore();
   const { authUser } = useAuthStore();
   const endRef = useRef(null);
 
