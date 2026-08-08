@@ -28,6 +28,38 @@ const getTransporter = () => {
   return transporter;
 };
 
+const getFromAddress = () => {
+  const configured = process.env.RESEND_FROM || process.env.MAIL_FROM || process.env.MAIL_USER;
+  return configured || "Chatty <onboarding@resend.dev>";
+};
+
+const sendWithResend = async ({ to, subject, text, html }) => {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) return false;
+
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      from: getFromAddress(),
+      to: [to],
+      subject,
+      text,
+      html,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Resend API failed: ${response.status} ${errorText}`);
+  }
+
+  return true;
+};
+
 const wrap = (title, body) => `
 <div style="font-family:Inter,Segoe UI,Arial,sans-serif;background:#f4f7fb;padding:40px 0">
   <div style="max-width:520px;margin:0 auto;background:#fff;border-radius:16px;padding:32px;box-shadow:0 4px 24px rgba(0,0,0,.06)">
@@ -68,8 +100,15 @@ const otpText = (otp, purpose, expires) =>
   `Chatty ${purpose} Code\n\nYour ${purpose.toLowerCase()} code is: ${otp}\nIt expires in ${expires} minutes.\n\nIf you did not request this, please ignore this email.`;
 
 const sendMail = async ({ to, subject, text, html }) => {
+  try {
+    const sentViaResend = await sendWithResend({ to, subject, text, html });
+    if (sentViaResend) return;
+  } catch (resendError) {
+    console.warn("Resend failed, falling back to SMTP:", resendError.message);
+  }
+
   if (!process.env.MAIL_USER || !process.env.MAIL_PASS) {
-    throw new Error("SMTP email credentials are missing. Set MAIL_USER and MAIL_PASS in Render environment variables.");
+    throw new Error("No email provider configured. Set RESEND_API_KEY or MAIL_USER and MAIL_PASS in Render environment variables.");
   }
 
   const rawFrom = process.env.MAIL_FROM || process.env.MAIL_USER;
