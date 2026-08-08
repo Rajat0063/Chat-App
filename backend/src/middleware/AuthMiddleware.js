@@ -3,13 +3,16 @@ import User from "../models/UserModel.js";
 
 export const protectRoute = async (req, res, next) => {
   try {
-    const token = req.cookies.jwt;
+    const cookieToken = req.cookies?.jwt;
+    const authHeader = req.headers?.authorization || "";
+    const token = cookieToken || authHeader.replace(/^Bearer\s+/i, "");
+
     if (!token) return res.status(401).json({ message: "Unauthorized - No token" });
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     if (!decoded) return res.status(401).json({ message: "Unauthorized - Invalid token" });
 
-    const user = await User.findById(decoded.userId).select("-password");
+    const user = await User.findById(decoded.userId || decoded._id).select("-password");
     if (!user) return res.status(404).json({ message: "User not found" });
 
     req.user = user;
