@@ -4,7 +4,7 @@ import toast from "react-hot-toast";
 import { io } from "socket.io-client";
 import { useChatStore } from "./useChatStore.js";
 
-const SOCKET_BASE_URL = (import.meta.env.VITE_SOCKET_URL || import.meta.env.VITE_API_URL || (import.meta.env.MODE === "development" ? "http://localhost:5001" : "")).replace(/\/+$/, "");
+const SOCKET_BASE_URL = (import.meta.env.VITE_SOCKET_URL || import.meta.env.VITE_API_URL || "").replace(/\/+$/, "");
 
 export const useAuthStore = create((set, get) => ({
   authUser: null,
@@ -33,7 +33,7 @@ export const useAuthStore = create((set, get) => ({
     set({ isSigningUp: true });
     try {
       const res = await axiosInstance.post("/auth/signup", data);
-      toast.success("Account created — check your email for the code.");
+      toast.success("Account created — check your email or server log for verification code.");
       return { ok: true, email: res.data.email };
     } catch (err) {
       toast.error(err?.response?.data?.message || "Signup failed");
@@ -101,7 +101,7 @@ export const useAuthStore = create((set, get) => ({
   forgotPassword: async (email) => {
     try {
       await axiosInstance.post("/auth/forgot-password", { email });
-      toast.success("If that email exists, a reset link has been sent.");
+      toast.success("If that email exists, a reset code has been sent.");
       return { ok: true };
     } catch (err) {
       toast.error(err?.response?.data?.message || "Request failed");
@@ -167,16 +167,18 @@ export const useAuthStore = create((set, get) => ({
     s.off("newGroup");
     s.on("newGroup", (group) => {
       useChatStore.setState((state) => {
-        const hasGroup = state.groups.some((g) => g._id === group._id);
+        const currentGroups = Array.isArray(state.groups) ? state.groups : [];
+        const hasGroup = currentGroups.some((g) => g._id === group._id);
         return {
-          groups: hasGroup ? state.groups : [...state.groups, group],
+          groups: hasGroup ? currentGroups : [...currentGroups, group],
         };
       });
     });
     s.off("groupUpdated");
     s.on("groupUpdated", (updatedGroup) => {
       useChatStore.setState((state) => {
-        const groups = state.groups.map((group) => group._id === updatedGroup._id ? updatedGroup : group);
+        const currentGroups = Array.isArray(state.groups) ? state.groups : [];
+        const groups = currentGroups.map((group) => group._id === updatedGroup._id ? updatedGroup : group);
         return {
           groups,
           selectedGroup: state.selectedGroup?._id === updatedGroup._id ? updatedGroup : state.selectedGroup,
@@ -186,7 +188,7 @@ export const useAuthStore = create((set, get) => ({
     s.off("groupDeleted");
     s.on("groupDeleted", (groupId) => {
       useChatStore.setState((state) => ({
-        groups: state.groups.filter((g) => g._id !== groupId),
+        groups: (Array.isArray(state.groups) ? state.groups : []).filter((g) => g._id !== groupId),
         selectedGroup: state.selectedGroup?._id === groupId ? null : state.selectedGroup,
       }));
     });

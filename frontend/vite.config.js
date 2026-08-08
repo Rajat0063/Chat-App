@@ -7,29 +7,38 @@ import { defineConfig } from 'vite';
 function caseInsensitiveResolvePlugin() {
   return {
     name: 'case-insensitive-resolve',
+    enforce: 'pre',
     resolveId(source, importer) {
       if (!importer || source.startsWith('\0') || source.includes('node_modules')) return null;
+
+      let resolvedPath = '';
       if (source.startsWith('.')) {
-        const dir = path.dirname(importer);
-        const resolvedPath = path.resolve(dir, source);
-        if (fs.existsSync(resolvedPath)) return null;
+        resolvedPath = path.resolve(path.dirname(importer), source);
+      } else if (source.startsWith('@/')) {
+        resolvedPath = path.resolve(__dirname, './src', source.slice(2));
+      } else if (source.startsWith('@src/')) {
+        resolvedPath = path.resolve(__dirname, './src', source.slice(5));
+      } else {
+        return null;
+      }
 
-        const parentDir = path.dirname(resolvedPath);
-        const targetBase = path.basename(resolvedPath).toLowerCase();
+      if (fs.existsSync(resolvedPath)) return null;
 
-        if (fs.existsSync(parentDir)) {
-          const files = fs.readdirSync(parentDir);
-          const matched = files.find((f) => f.toLowerCase() === targetBase);
-          if (matched) {
-            return path.join(parentDir, matched);
-          }
-          const targetBaseNoExt = targetBase.replace(/\.(jsx|js|tsx|ts)$/, '');
-          const matchedExt = files.find(
-            (f) => f.toLowerCase().replace(/\.(jsx|js|tsx|ts)$/, '') === targetBaseNoExt
-          );
-          if (matchedExt) {
-            return path.join(parentDir, matchedExt);
-          }
+      const parentDir = path.dirname(resolvedPath);
+      const targetBase = path.basename(resolvedPath).toLowerCase();
+
+      if (fs.existsSync(parentDir)) {
+        const files = fs.readdirSync(parentDir);
+        const matched = files.find((f) => f.toLowerCase() === targetBase);
+        if (matched) {
+          return path.join(parentDir, matched);
+        }
+        const targetBaseNoExt = targetBase.replace(/\.(jsx|js|tsx|ts)$/, '');
+        const matchedExt = files.find(
+          (f) => f.toLowerCase().replace(/\.(jsx|js|tsx|ts)$/, '') === targetBaseNoExt
+        );
+        if (matchedExt) {
+          return path.join(parentDir, matchedExt);
         }
       }
       return null;

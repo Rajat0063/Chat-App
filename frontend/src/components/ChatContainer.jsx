@@ -44,7 +44,7 @@ export default function ChatContainer() {
     <div className="flex-1 flex min-h-0 flex-col overflow-hidden">
       <ChatHeader />
       <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-3 py-3 sm:px-4 sm:py-4 space-y-4">
-        {messages.map((m) => {
+        {(Array.isArray(messages) ? messages : []).map((m) => {
           const mine = m.senderId === authUser._id || m.senderId?._id === authUser._id;
           const senderPhoto = mine
             ? authUser.profilePic || "/avatar.png"

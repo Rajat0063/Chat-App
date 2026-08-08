@@ -20,7 +20,11 @@ export default function Sidebar() {
   useEffect(() => { getUsers(); }, [getUsers]);
   useEffect(() => { getGroups(); }, [getGroups]);
 
-  const filtered = showOnlineOnly ? users.filter((u) => onlineUsers.includes(u._id)) : users;
+  const safeGroups = Array.isArray(groups) ? groups : [];
+  const safeUsers = Array.isArray(users) ? users : [];
+  const safeOnlineUsers = Array.isArray(onlineUsers) ? onlineUsers : [];
+
+  const filtered = showOnlineOnly ? safeUsers.filter((u) => safeOnlineUsers.includes(u._id)) : safeUsers;
 
   if (isUsersLoading) return <SidebarSkeleton />;
 
@@ -37,7 +41,7 @@ export default function Sidebar() {
               onChange={(e) => setShowOnlineOnly(e.target.checked)} className="checkbox checkbox-sm" />
             <span className="text-sm">Show online only</span>
           </label>
-          <span className="text-xs text-zinc-500">({Math.max(0, onlineUsers.length - 1)} online)</span>
+          <span className="text-xs text-zinc-500">({Math.max(0, safeOnlineUsers.length - 1)} online)</span>
         </div>
       </div>
       <div className="overflow-y-auto w-full py-3 px-2 min-w-0">
@@ -52,7 +56,7 @@ export default function Sidebar() {
           </div>
         </div>
         <div className="space-y-2 mb-3">
-          {groups.map((g) => (
+          {safeGroups.map((g) => (
             <button key={g._id} onClick={() => setSelectedGroup(g)}
               className={`w-full p-3 min-h-[4rem] flex items-center gap-3 justify-center sm:justify-start rounded-xl hover:bg-base-300 transition-colors ${selectedGroup?._id === g._id ? "bg-base-300" : ""}`}>
               <div className="relative mx-auto sm:mx-0 size-12 sm:size-14 rounded-full overflow-hidden bg-base-200 flex-shrink-0">
@@ -71,13 +75,13 @@ export default function Sidebar() {
               className={`w-full p-3 min-h-[4rem] flex items-center gap-3 justify-center sm:justify-start hover:bg-base-300 transition-colors rounded-xl ${selectedUser?._id === u._id ? "bg-base-300 ring-1 ring-base-300" : ""}`}>
               <div className="relative mx-auto sm:mx-0 size-12 sm:size-14 rounded-full overflow-visible bg-base-200 flex-shrink-0">
                 <img src={u.profilePic || "/avatar.png"} alt={u.fullName} className="w-full h-full object-cover rounded-full" />
-                {onlineUsers.includes(u._id) && (
+                {safeOnlineUsers.includes(u._id) && (
                   <span className="absolute bottom-0 right-0 size-3 bg-green-500 rounded-full ring-2 ring-base-100 z-10" />
                 )}
               </div>
               <div className="hidden sm:block lg:block text-left min-w-0 flex-1">
                 <div className="font-medium truncate">{u.fullName}</div>
-                <div className="text-sm text-zinc-400 truncate">{onlineUsers.includes(u._id) ? "Online" : "Offline"}</div>
+                <div className="text-sm text-zinc-400 truncate">{safeOnlineUsers.includes(u._id) ? "Online" : "Offline"}</div>
               </div>
             </button>
           ))}

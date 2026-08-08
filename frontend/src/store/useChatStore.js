@@ -23,8 +23,8 @@ export const useChatStore = create((set, get) => ({
     set({ isUsersLoading: true });
     try {
       const res = await axiosInstance.get("/messages/users");
-      const nextUsers = res.data.users || [];
-      const nextBlockedUsers = (res.data.blockedUsers || []).map((id) => id.toString());
+      const nextUsers = Array.isArray(res.data?.users) ? res.data.users : (Array.isArray(res.data) ? res.data : []);
+      const nextBlockedUsers = (Array.isArray(res.data?.blockedUsers) ? res.data.blockedUsers : []).map((id) => id.toString());
       const currentSelectedUser = get().selectedUser;
 
       set({
@@ -36,24 +36,28 @@ export const useChatStore = create((set, get) => ({
       });
     } catch (err) {
       toast.error(err?.response?.data?.message || "Failed to load users");
+      set({ users: [] });
     } finally { set({ isUsersLoading: false }); }
   },
 
   getGroups: async () => {
     try {
       const res = await axiosInstance.get("/groups");
-      set({ groups: res.data });
+      const groupsData = Array.isArray(res.data) ? res.data : (Array.isArray(res.data?.groups) ? res.data.groups : []);
+      set({ groups: groupsData });
     } catch (err) {
       toast.error(err?.response?.data?.message || "Failed to load groups");
+      set({ groups: [] });
     }
   },
 
   createGroup: async (payload) => {
     try {
       const res = await axiosInstance.post("/groups", payload);
-      set({ groups: [...get().groups, res.data], selectedGroup: res.data, selectedUser: null });
+      const currentGroups = Array.isArray(get().groups) ? get().groups : [];
+      set({ groups: [...currentGroups, res.data], selectedGroup: res.data, selectedUser: null });
       await get().getGroups();
-      const refreshed = get().groups.find((g) => g._id === res.data._id);
+      const refreshed = (Array.isArray(get().groups) ? get().groups : []).find((g) => g._id === res.data._id);
       if (refreshed) set({ selectedGroup: refreshed });
       toast.success("Group created");
       return res.data;
@@ -66,9 +70,10 @@ export const useChatStore = create((set, get) => ({
     set({ isMessagesLoading: true });
     try {
       const res = await axiosInstance.get(`/messages/${userId}`);
-      set({ messages: res.data });
+      set({ messages: Array.isArray(res.data) ? res.data : (Array.isArray(res.data?.messages) ? res.data.messages : []) });
     } catch (err) {
       toast.error(err?.response?.data?.message || "Failed to load messages");
+      set({ messages: [] });
     } finally { set({ isMessagesLoading: false }); }
   },
 
@@ -76,16 +81,18 @@ export const useChatStore = create((set, get) => ({
     set({ isMessagesLoading: true });
     try {
       const res = await axiosInstance.get(`/groups/${groupId}/messages`);
-      set({ messages: res.data });
+      set({ messages: Array.isArray(res.data) ? res.data : (Array.isArray(res.data?.messages) ? res.data.messages : []) });
     } catch (err) {
       toast.error(err?.response?.data?.message || "Failed to load messages");
+      set({ messages: [] });
     } finally { set({ isMessagesLoading: false }); }
   },
 
   updateGroup: async (groupId, payload) => {
     try {
       const res = await axiosInstance.post(`/groups/${groupId}/update`, payload);
-      const groups = get().groups.map((group) => group._id === groupId ? res.data : group);
+      const currentGroups = Array.isArray(get().groups) ? get().groups : [];
+      const groups = currentGroups.map((group) => group._id === groupId ? res.data : group);
       set({ groups, selectedGroup: res.data });
       return res.data;
     } catch (err) {
@@ -96,7 +103,8 @@ export const useChatStore = create((set, get) => ({
   addGroupMembers: async (groupId, memberIds) => {
     try {
       const res = await axiosInstance.post(`/groups/${groupId}/members`, { members: memberIds });
-      const groups = get().groups.map((group) => group._id === groupId ? res.data : group);
+      const currentGroups = Array.isArray(get().groups) ? get().groups : [];
+      const groups = currentGroups.map((group) => group._id === groupId ? res.data : group);
       set({ groups, selectedGroup: res.data });
       toast.success("Members added");
       return res.data;
@@ -192,7 +200,8 @@ export const useChatStore = create((set, get) => ({
   leaveGroup: async (groupId) => {
     try {
       await axiosInstance.post(`/groups/${groupId}/leave`);
-      set({ selectedGroup: null, messages: [], groups: get().groups.filter((g) => g._id !== groupId) });
+      const currentGroups = Array.isArray(get().groups) ? get().groups : [];
+      set({ selectedGroup: null, messages: [], groups: currentGroups.filter((g) => g._id !== groupId) });
       toast.success("Left group");
     } catch (err) {
       toast.error(err?.response?.data?.message || "Failed to leave group");
@@ -201,7 +210,8 @@ export const useChatStore = create((set, get) => ({
   deleteGroup: async (groupId) => {
     try {
       await axiosInstance.delete(`/groups/${groupId}`);
-      set({ groups: get().groups.filter((g) => g._id !== groupId), selectedGroup: null });
+      const currentGroups = Array.isArray(get().groups) ? get().groups : [];
+      set({ groups: currentGroups.filter((g) => g._id !== groupId), selectedGroup: null });
       toast.success("Group deleted");
     } catch (err) {
       toast.error(err?.response?.data?.message || "Failed to delete group");
