@@ -29,8 +29,39 @@ const getTransporter = () => {
 };
 
 const getFromAddress = () => {
-  const configured = process.env.RESEND_FROM || process.env.MAIL_FROM || process.env.MAIL_USER;
+  const configured = process.env.BREVO_FROM || process.env.RESEND_FROM || process.env.MAIL_FROM || process.env.MAIL_USER;
   return configured || "Chatty <onboarding@resend.dev>";
+};
+
+const sendWithBrevo = async ({ to, subject, text, html }) => {
+  const apiKey = process.env.BREVO_API_KEY;
+  if (!apiKey) return false;
+
+  const response = await fetch("https://api.brevo.com/v3/smtp/email", {
+    method: "POST",
+    headers: {
+      "api-key": apiKey,
+      "Content-Type": "application/json",
+      "Accept": "application/json",
+    },
+    body: JSON.stringify({
+      sender: {
+        name: "Chatty",
+        email: getFromAddress(),
+      },
+      to: [{ email: to }],
+      subject,
+      htmlContent: html,
+      textContent: text,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Brevo API failed: ${response.status} ${errorText}`);
+  }
+
+  return true;
 };
 
 const sendWithResend = async ({ to, subject, text, html }) => {
@@ -101,6 +132,13 @@ const otpText = (otp, purpose, expires) =>
 
 const sendMail = async ({ to, subject, text, html }) => {
   try {
+    const sentViaBrevo = await sendWithBrevo({ to, subject, text, html });
+    if (sentViaBrevo) return;
+  } catch (brevoError) {
+    console.warn("Brevo failed, trying Resend:", brevoError.message);
+  }
+
+  try {
     const sentViaResend = await sendWithResend({ to, subject, text, html });
     if (sentViaResend) return;
   } catch (resendError) {
@@ -108,7 +146,7 @@ const sendMail = async ({ to, subject, text, html }) => {
   }
 
   if (!process.env.MAIL_USER || !process.env.MAIL_PASS) {
-    throw new Error("No email provider configured. Set RESEND_API_KEY or MAIL_USER and MAIL_PASS in Render environment variables.");
+    throw new Error("No email provider configured. Set BREVO_API_KEY or RESEND_API_KEY or MAIL_USER and MAIL_PASS in Render environment variables.");
   }
 
   const rawFrom = process.env.MAIL_FROM || process.env.MAIL_USER;
