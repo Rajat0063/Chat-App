@@ -13,8 +13,8 @@ export const generateToken = (userId, res) => {
   res.cookie("jwt", token, {
     maxAge: 7 * 24 * 60 * 60 * 1000,
     httpOnly: true,
-    sameSite: isSecureDeployment ? "none" : "lax",
-    secure: isSecureDeployment,
+    sameSite: "none",
+    secure: isSecureDeployment || process.env.NODE_ENV === "development",
     path: "/",
   });
 

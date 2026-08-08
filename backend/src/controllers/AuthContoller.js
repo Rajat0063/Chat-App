@@ -146,8 +146,8 @@ export const logout = (_req, res) => {
   res.cookie("jwt", "", {
     maxAge: 0,
     httpOnly: true,
-    sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
-    secure: process.env.NODE_ENV === "production" || Boolean(process.env.RENDER) || Boolean(process.env.VERCEL),
+    sameSite: "none",
+    secure: true,
     path: "/",
   });
   res.status(200).json({ message: "Logged out" });
@@ -232,8 +232,8 @@ export const deleteAccount = async (req, res) => {
     res.cookie("jwt", "", {
       maxAge: 0,
       httpOnly: true,
-      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
-      secure: process.env.NODE_ENV === "production" || Boolean(process.env.RENDER) || Boolean(process.env.VERCEL),
+      sameSite: "none",
+      secure: true,
       path: "/",
     });
     res.json({ message: "Account deleted" });
