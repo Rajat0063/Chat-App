@@ -1,26 +1,59 @@
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Build outputs
+/dist/
+**/dist/
+/build/
+**/build/
+/.next/
+**/.next/
+/.nuxt/
+**/.nuxt/
+/.output/
+**/.output/
+/.vite/
+**/.vite/
+/.tanstack/
+**/.tanstack/
+/.nitro/
+**/.nitro/
+/.wrangler/
+**/.wrangler/
+coverage/
+**/coverage/
+
+# Environment files
+.env
+**/.env
+.env.*
+**/.env.*
+*.local
+**/*.local
+
 # Logs
-logs
+logs/
 *.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
-lerna-debug.log*
 
-node_modules
-dist
-dist-ssr
-*.local
-
-# Editor directories and files
-.vscode/*
-!.vscode/extensions.json
-.idea
+# OS/editor junk
 .DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
-*.sw?
 
-.env
+# Optional generated temp files
+.cache/
+**/.cache/
+.tmp/
+**/.tmp/

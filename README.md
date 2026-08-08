@@ -1,140 +1,349 @@
-<div align="center">
+# Chatty
 
-<a name="chat-app"></a>
+A full-stack real-time chat application built with React, Vite, Express, MongoDB, and Socket.IO. It supports user authentication, one-time password verification, password resets, direct messaging, group chats, online user presence, profile management, and real-time notifications.
 
-# 📱 CHAT-APP
+## Overview
 
-_Connect Instantly, Communicate Effortlessly, Engage Deeply_
+Chatty is designed as a modern messaging platform with a clean client experience and a reliable API backend. The project is separated into two main folders:
 
-<img src="https://img.shields.io/badge/last%20commit-may%202025-blue" />
-<img src="https://img.shields.io/badge/javascript-99.3%25-yellow" />
-<img src="https://img.shields.io/badge/languages-3-blue" />
+- `backend/` — Express API, MongoDB models, authentication logic, mailer, and real-time socket server
+- `frontend/` — React + Vite app with Zustand state management, Tailwind styling, and chat UI
 
----
-
-### 🛠️ Built with the tools and technologies:
-
-<img src="https://img.shields.io/badge/Express.js-000000?style=for-the-badge&logo=express&logoColor=white" />
-<img src="https://img.shields.io/badge/JSON-292929?style=for-the-badge&logo=json&logoColor=white" />
-<img src="https://img.shields.io/badge/Markdown-000000?style=for-the-badge&logo=markdown&logoColor=white" />
-<img src="https://img.shields.io/badge/Socket.io-010101?style=for-the-badge&logo=socket.io&logoColor=white" />
-<img src="https://img.shields.io/badge/npm-CB3837?style=for-the-badge&logo=npm&logoColor=white" />
-<img src="https://img.shields.io/badge/Autoprefixer-DD3735?style=for-the-badge&logo=autoprefixer&logoColor=white" />
-<img src="https://img.shields.io/badge/Mongoose-880000?style=for-the-badge&logo=mongoose&logoColor=white" />
-<img src="https://img.shields.io/badge/PostCSS-DD3A0A?style=for-the-badge&logo=postcss&logoColor=white" />
-<img src="https://img.shields.io/badge/.ENV-8DD6F9?style=for-the-badge&logo=dotenv&logoColor=black" />
-<img src="https://img.shields.io/badge/JavaScript-F7DF1E?style=for-the-badge&logo=javascript&logoColor=black" />
-<img src="https://img.shields.io/badge/Nodemon-76D04B?style=for-the-badge&logo=nodemon&logoColor=white" />
-<img src="https://img.shields.io/badge/DaisyUI-51A3A3?style=for-the-badge&logo=daisyui&logoColor=white" />
-<img src="https://img.shields.io/badge/React-61DAFB?style=for-the-badge&logo=react&logoColor=black" />
-<img src="https://img.shields.io/badge/Cloudinary-3448C5?style=for-the-badge&logo=cloudinary&logoColor=white" />
-<img src="https://img.shields.io/badge/Vite-646CFF?style=for-the-badge&logo=vite&logoColor=white" />
-<img src="https://img.shields.io/badge/ESLint-4B32C3?style=for-the-badge&logo=eslint&logoColor=white" />
-<img src="https://img.shields.io/badge/Axios-5A29E4?style=for-the-badge&logo=axios&logoColor=white" />
-
-</div>
+There is also a `frontend/legacy-template/` folder kept separate from the active app. It is not part of the production chat application and can be ignored unless you intentionally want to reuse its starter code.
 
 ---
 
-<details>
-  <summary><strong>📚 Table of Contents</strong></summary>
+## Tech Stack
 
-- [🚀 Overview](#why-chat-app)
-- [🛠️ Getting Started](#getting-started)
-  - [📦 Prerequisites](#prerequisites)
-  - [⚙️ Installation](#installation)
-  - [🧪 Usage](#usage)
-- [📂 Folder Structure](#folder-structure)
-- [📸 Screenshots](#screenshots)
-- [👨‍💻 Author](#author)
-- [🔝 Return to Top](#chat-app)
+### Frontend
+- React 18
+- Vite
+- React Router DOM
+- Zustand
+- Tailwind CSS
+- DaisyUI
+- Axios
+- Socket.IO Client
+- React Hot Toast
+- Lucide React
 
-</details>
+### Backend
+- Node.js
+- Express.js
+- MongoDB + Mongoose
+- Socket.IO
+- JWT (JSON Web Tokens)
+- Cookie-based session handling
+- Bcrypt.js
+- Nodemailer
+- dotenv
 
----
-
-## Why Chat-App?
-
-This project facilitates effortless conversations among users while showcasing modern chat functionalities.  
-The core features include:
-
-- 💬 **Real-time Communication**: Instant messaging capabilities enhance user engagement.
-- 🔐 **User Authentication**: Secure signup and login processes with JWT for session management.
-- 🌸 **Customizable Themes**: Easily switch themes to improve user experience and personalization.
-- 🖥️ **Responsive Design**: Intuitive UI adapts to various devices, ensuring accessibility for all users.
-- ⚡ **Efficient State Management**: Utilizes Zustand for streamlined data flow and application state.
-
----
-
-## Getting Started
-
-### Prerequisites
-
-This project requires the following dependencies:
-
-- **Programming Language**: JavaScript  
-- **Package Manager**: Npm
+### Tools & Dev Setup
+- ESLint
+- PostCSS
+- Autoprefixer
+- Nodemon
 
 ---
 
-### Installation
+## Features
 
-1. **Clone the repository:**
+### Authentication
+- Sign up with email + password
+- Email verification using OTP
+- Resend OTP support
+- Login/logout
+- JWT authentication with secure cookies
+- Forgot password flow
+- Reset password flow
+- Protected routes and middleware
+- Profile and password updates
+- Account deletion
 
-   ```bash
-    git clone https://github.com/Rajat0063/Chat-App.git
+### Messaging
+- One-to-one chat
+- Real-time message delivery via Socket.IO
+- Message deletion for selected user conversation
+- Block/unblock users
+- Online user tracking
+- Image/text message support
+- Group chat creation and management
 
-2. **Navigate the to the project directory:**
+### Group Features
+- Create group chats
+- Add members to groups
+- Update group details
+- Leave group
+- Delete group
+- Group conversation management
+- Group real-time message updates
 
-   ```bash
-    cd Chat-App
-
-3. **Install the dependencies** 
-
-   Using [npm](https://www.npmjs.com/):
-
-   ```bash
-   npm install
-
-### Usage
-
-**Run the project with:**
-
-- Using [npm](https://www.npmjs.com/):
-
-  ```bash
-  npm run dev
+### Frontend UX
+- Responsive design
+- Authentication pages
+- Landing page
+- Chat sidebar and conversations
+- Theme support
+- Toast notifications
+- Profile and settings pages
 
 ---
 
-### 📂 Folder Structure
+## Project Structure
 
 ```text
 Chat-App/
-├── assets/
+├── README.md
+├── project.json
 ├── backend/
+│   ├── package.json
+│   ├── README.md
+│   └── src/
+│       ├── index.js
+│       ├── controllers/
+│       │   ├── AuthContoller.js
+│       │   ├── GroupController.js
+│       │   └── MessageContoller.js
+│       ├── lib/
+│       │   ├── db.js
+│       │   ├── mailer.js
+│       │   ├── socket.js
+│       │   └── utils.js
+│       ├── middleware/
+│       │   └── AuthMiddleware.js
+│       ├── models/
+│       │   ├── GroupModel.js
+│       │   ├── MessageModel.js
+│       │   ├── OtpModel.js
+│       │   └── UserModel.js
+│       └── routes/
+│           ├── AuthRoute.js
+│           ├── GroupRoute.js
+│           └── MessageRoute.js
 ├── frontend/
-├── .gitignore
-├── package.json
-└── README.md
+│   ├── package.json
+│   ├── README.md
+│   ├── index.html
+│   ├── vite.config.js
+│   ├── tailwind.config.js
+│   ├── postcss.config.js
+│   ├── public/
+│   └── src/
+│       ├── App.jsx
+│       ├── index.css
+│       ├── main.jsx
+│       ├── components/
+│       │   ├── AuthImagePattern.jsx
+│       │   ├── ChatContainer.jsx
+│       │   ├── ChatHeader.jsx
+│       │   ├── MessageInput.jsx
+│       │   ├── Navbar.jsx
+│       │   ├── NoChatSelected.jsx
+│       │   ├── Sidebar.jsx
+│       │   └── skeletons/
+│       ├── constants/
+│       │   └── index.js
+│       ├── lib/
+│       │   ├── axios.js
+│       │   └── utils.js
+│       ├── pages/
+│       │   ├── ForgotPasswordPage.jsx
+│       │   ├── HomePage.jsx
+│       │   ├── LandingPage.jsx
+│       │   ├── LoginPage.jsx
+│       │   ├── ProfilePage.jsx
+│       │   ├── ResetPasswordPage.jsx
+│       │   ├── SettingPage.jsx
+│       │   ├── SignUpPage.jsx
+│       │   └── VerifyOtpPage.jsx
+│       └── store/
+│           ├── useAuthStore.js
+│           ├── useChatStore.js
+│           └── useThemeStore.js
+└── frontend/legacy-template/
+    └── (unused starter project kept separate)
 ```
 
 ---
 
-### 📸 Screenshots
+## Environment Variables
 
-![Login Page](./assets/login.png)
-*Login screen with authentication*
+Create a `.env` file in the `backend/` folder with values similar to the following:
 
-![Chat Window](./assets/chat.png)
-*Real-time chat in action*
+```env
+PORT=5001
+CLIENT_URL=http://localhost:5173
+MONGO_URI=mongodb://127.0.0.1:27017/chatty
+JWT_SECRET=your_super_secret_key
+MAIL_HOST=smtp.gmail.com
+MAIL_PORT=465
+MAIL_USER=your_email@gmail.com
+MAIL_PASS=your_app_password
+MAIL_FROM=your_email@gmail.com
+MAIL_REPLY_TO=your_email@gmail.com
+NODE_ENV=development
+```
+
+### Notes
+- Use a real MongoDB connection string for production.
+- For Gmail, use an app password instead of your main account password.
+- Keep `JWT_SECRET` long and random.
 
 ---
 
-### 👤 Author
+## Installation
 
-**Rajat Yadav** – [@Rajat0063](https://github.com/Rajat0063)
+### 1. Clone the project
+
+```bash
+git clone <your-repository-url>
+cd Chat-App
+```
+
+### 2. Install backend dependencies
+
+```bash
+cd backend
+npm install
+```
+
+### 3. Install frontend dependencies
+
+```bash
+cd ../frontend
+npm install
+```
 
 ---
 
-[🔝 Return to Top](#chat-app)
+## Run the Project
+
+### Start backend
+
+```bash
+cd backend
+npm run dev
+```
+
+The backend runs on:
+
+```text
+http://localhost:5001
+```
+
+### Start frontend
+
+```bash
+cd frontend
+npm run dev
+```
+
+The frontend runs on:
+
+```text
+http://localhost:5173
+```
+
+---
+
+## Backend API Overview
+
+### Auth routes
+- `POST /api/auth/signup` — create account and send OTP
+- `POST /api/auth/verify-otp` — verify OTP and log in
+- `POST /api/auth/resend-otp` — resend verification code
+- `POST /api/auth/login` — sign in
+- `POST /api/auth/logout` — log out
+- `POST /api/auth/forgot-password` — send password reset email
+- `POST /api/auth/reset-password` — reset password
+- `PUT /api/auth/update-profile` — update profile info
+- `PUT /api/auth/change-password` — change password
+- `DELETE /api/auth/delete-account` — delete user account
+- `GET /api/auth/check` — verify current login session
+
+### Messaging routes
+- `GET /api/messages/users` — fetch users for sidebar
+- `GET /api/messages/:id` — get conversation between users
+- `POST /api/messages/send/:id` — send one-to-one message
+- `POST /api/messages/block/:id` — block/unblock user
+- `DELETE /api/messages/conversation/:id` — delete talk history for current user
+
+### Group routes
+- `POST /api/groups` — create a group
+- `GET /api/groups` — fetch groups for authenticated user
+- `GET /api/groups/:id/messages` — fetch group messages
+- `POST /api/groups/:id/send` — send message in group
+- `POST /api/groups/:id/update` — update group settings
+- `POST /api/groups/:id/members` — add members
+- `POST /api/groups/:id/leave` — leave group
+- `DELETE /api/groups/:id/conversation` — clear group conversation for current user
+- `DELETE /api/groups/:id` — delete a group
+
+---
+
+## Frontend Architecture
+
+The frontend is built around a clean modular design:
+
+- `pages/` — page-level screens such as login, signup, reset password, home, profile, settings, and landing page
+- `components/` — reusable UI blocks such as navbar, chat input, sidebar, header, and chat container
+- `store/` — global app state using Zustand for auth and chat state
+- `lib/` — Axios configuration and utility helpers
+- `constants/` — centralized frontend constants
+- `components/skeletons/` — loading states and placeholders
+
+### State management
+- `useAuthStore.js` handles authentication, OTP, login, logout, session checks, profile updates, and socket connections.
+- `useChatStore.js` handles users, messages, groups, conversations, and group logic.
+
+---
+
+## Security Notes
+
+- JWT tokens are stored in secure HTTP-only cookies.
+- Passwords are hashed using `bcryptjs` before being saved.
+- Email verification helps prevent fake accounts.
+- Protected API routes block unauthorized access.
+- CORS is enabled for the frontend origin.
+- Mail sending is configurable via environment variables.
+
+---
+
+## Production Notes
+
+To deploy this app in production:
+
+1. Set up a MongoDB database
+2. Add real environment variables for production
+3. Build the frontend:
+
+```bash
+cd frontend
+npm run build
+```
+
+4. Serve the built frontend or point the backend to the dist output
+5. Run the backend with `NODE_ENV=production`
+
+---
+
+## Contributing
+
+Contributions are welcome. If you want to improve the app:
+
+1. Create a new branch
+2. Make your changes
+3. Test the backend/frontend flows
+4. Submit a pull request
+
+---
+
+## License
+
+This project is for educational and personal project use unless you explicitly add a license. If you plan to publish or distribute it, consider adding a proper open-source license such as MIT.
+
+---
+
+## Summary
+
+Chatty is a real-time messaging application with strong authentication, OTP verification, reset flows, direct messaging, optional group chats, and a clean modern user interface. The project is structured to clearly separate frontend and backend responsibilities while still sharing a seamless real-time experience.
