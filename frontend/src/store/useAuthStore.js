@@ -4,7 +4,7 @@ import toast from "react-hot-toast";
 import { io } from "socket.io-client";
 import { useChatStore } from "./useChatStore.js";
 
-const BASE_URL = import.meta.env.MODE === "development" ? "http://localhost:5001" : "/";
+const SOCKET_BASE_URL = (import.meta.env.VITE_SOCKET_URL || import.meta.env.VITE_API_URL || (import.meta.env.MODE === "development" ? "http://localhost:5001" : "")).replace(/\/+$/, "");
 
 export const useAuthStore = create((set, get) => ({
   authUser: null,
@@ -151,7 +151,7 @@ export const useAuthStore = create((set, get) => ({
   connectSocket: () => {
     const { authUser, socket } = get();
     if (!authUser || socket?.connected) return;
-    const s = io(BASE_URL, { query: { userId: authUser._id }, withCredentials: true });
+    const s = io(SOCKET_BASE_URL || undefined, { query: { userId: authUser._id }, withCredentials: true });
     s.connect();
     set({ socket: s });
     s.on("getOnlineUsers", (ids) => set({ onlineUsers: ids }));
