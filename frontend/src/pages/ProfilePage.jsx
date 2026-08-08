@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Camera, Mail, User, Trash2, Loader2, KeyRound } from "lucide-react";
 import { useAuthStore } from "../store/useAuthStore.js";
-import PasswordStrengthMeter from "../components/PasswordStrengthMeter.jsx";
+import PasswordStrengthMeter from "../components/PasswordStrengthMeter";
 
 export default function ProfilePage() {
   const { authUser, isUpdatingProfile, updateProfile, deleteAccount } = useAuthStore();

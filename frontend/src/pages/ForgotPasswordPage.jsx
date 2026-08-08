@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { Loader2, Mail, KeyRound, Lock, Eye, EyeOff, ShieldCheck, ArrowLeft, ArrowRight, CheckCircle2 } from "lucide-react";
 import toast from "react-hot-toast";
 import { useAuthStore } from "../store/useAuthStore.js";
-import PasswordStrengthMeter from "../components/PasswordStrengthMeter.jsx";
+import PasswordStrengthMeter from "../components/PasswordStrengthMeter";
 
 export default function ForgotPasswordPage() {
   const [step, setStep] = useState(1); // 1: Request OTP | 2: Enter OTP & New Password

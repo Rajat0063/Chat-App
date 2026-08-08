@@ -4,7 +4,7 @@ import { Eye, EyeOff, Loader2, Lock, Mail, MessageSquare, User, ArrowRight, Shie
 import toast from "react-hot-toast";
 import { useAuthStore } from "../store/useAuthStore.js";
 import AuthImagePattern from "../components/AuthImagePattern.jsx";
-import PasswordStrengthMeter from "../components/PasswordStrengthMeter.jsx";
+import PasswordStrengthMeter from "../components/PasswordStrengthMeter";
 
 export default function SignUpPage() {
   const [showPwd, setShowPwd] = useState(false);
