@@ -22,6 +22,7 @@ export const useAuthStore = create((set, get) => ({
       set({ authUser: res.data });
       get().connectSocket();
     } catch {
+      localStorage.removeItem("chat-token");
       set({ authUser: null });
     } finally {
       set({ isCheckingAuth: false });
@@ -43,6 +44,7 @@ export const useAuthStore = create((set, get) => ({
   verifyOtp: async ({ email, code }) => {
     try {
       const res = await axiosInstance.post("/auth/verify-otp", { email, code });
+      if (res.data.token) localStorage.setItem("chat-token", res.data.token);
       set({ authUser: res.data });
       toast.success("Email verified! Welcome to Chatty.");
       get().connectSocket();
@@ -66,6 +68,7 @@ export const useAuthStore = create((set, get) => ({
     set({ isLoggingIn: true });
     try {
       const res = await axiosInstance.post("/auth/login", data);
+      if (res.data.token) localStorage.setItem("chat-token", res.data.token);
       set({ authUser: res.data });
       toast.success("Welcome back!");
       get().connectSocket();
@@ -84,10 +87,13 @@ export const useAuthStore = create((set, get) => ({
   logout: async () => {
     try {
       await axiosInstance.post("/auth/logout");
+      localStorage.removeItem("chat-token");
       set({ authUser: null });
       toast.success("Logged out");
       get().disconnectSocket();
     } catch (err) {
+      localStorage.removeItem("chat-token");
+      set({ authUser: null });
       toast.error(err?.response?.data?.message || "Logout failed");
     }
   },
@@ -140,10 +146,13 @@ export const useAuthStore = create((set, get) => ({
   deleteAccount: async () => {
     try {
       await axiosInstance.delete("/auth/delete-account");
+      localStorage.removeItem("chat-token");
       set({ authUser: null });
       toast.success("Account deleted");
       get().disconnectSocket();
     } catch (err) {
+      localStorage.removeItem("chat-token");
+      set({ authUser: null });
       toast.error(err?.response?.data?.message || "Delete failed");
     }
   },

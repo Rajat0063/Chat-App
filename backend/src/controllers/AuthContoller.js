@@ -75,7 +75,7 @@ export const verifyOtp = async (req, res) => {
     if (!user) return res.status(404).json({ message: "User not found" });
 
     await Otp.deleteMany({ email, purpose: "verify" });
-    generateToken(user._id, res);
+    const token = generateToken(user._id, res);
 
     res.status(200).json({
       _id: user._id,
@@ -83,6 +83,7 @@ export const verifyOtp = async (req, res) => {
       email: user.email,
       profilePic: user.profilePic,
       isVerified: true,
+      token,
     });
   } catch (err) {
     console.log("verifyOtp error:", err.message);
@@ -130,10 +131,11 @@ export const login = async (req, res) => {
     if (!user.isVerified)
       return res.status(403).json({ message: "Please verify your email first.", needsVerification: true, email: user.email });
 
-    generateToken(user._id, res);
+    const token = generateToken(user._id, res);
     res.status(200).json({
       _id: user._id, fullName: user.fullName, email: user.email,
       profilePic: user.profilePic, isVerified: user.isVerified,
+      token,
     });
   } catch (err) {
     console.log("login error:", err.message);
