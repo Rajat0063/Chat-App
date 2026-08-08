@@ -3,7 +3,7 @@ import { useSearchParams, useNavigate, Link } from "react-router-dom";
 import { Loader2, KeyRound, Lock, Eye, EyeOff, ShieldCheck, ArrowLeft } from "lucide-react";
 import toast from "react-hot-toast";
 import { useAuthStore } from "../store/useAuthStore.js";
-import PasswordStrengthMeter from "../components/PasswordStrengthMeter";
+import PasswordStrengthMeter from "../components/PasswordStrengthMeter.jsx";
 
 export default function ResetPasswordPage() {
   const [params] = useSearchParams();
