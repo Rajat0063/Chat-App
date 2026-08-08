@@ -39,9 +39,10 @@ export const signup = async (req, res) => {
     try {
       await sendOtpEmail(email, code);
     } catch (e) {
-      console.log("Mail send failed:", e.message);
-      // dev fallback so flow still works
-      console.log(`[DEV] OTP for ${email}: ${code}`);
+      await User.findByIdAndDelete(newUser._id);
+      await Otp.deleteMany({ email, purpose: "verify" });
+      console.error("Mail send failed:", e.message);
+      return res.status(500).json({ message: "Failed to send verification email. Please try again later." });
     }
 
     res.status(201).json({
@@ -103,9 +104,13 @@ export const resendOtp = async (req, res) => {
       email, code, purpose: "verify",
       expiresAt: new Date(Date.now() + 10 * 60 * 1000),
     });
-    try { await sendOtpEmail(email, code); }
-    catch (e) { console.log(`[DEV] OTP for ${email}: ${code}`); }
-    res.json({ message: "A new code has been sent." });
+    try {
+      await sendOtpEmail(email, code);
+      res.json({ message: "A new code has been sent." });
+    } catch (e) {
+      console.error("Resend OTP mail failed:", e.message);
+      return res.status(500).json({ message: "Failed to send verification email. Please try again later." });
+    }
   } catch (err) {
     console.log("resendOtp error:", err.message);
     res.status(500).json({ message: "Internal server error" });

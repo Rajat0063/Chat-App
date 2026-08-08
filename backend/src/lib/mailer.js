@@ -4,10 +4,15 @@ let transporter;
 
 const getTransporter = () => {
   if (transporter) return transporter;
+
+  const host = process.env.MAIL_HOST || "smtp.gmail.com";
+  const port = Number(process.env.MAIL_PORT || (host.includes("gmail") ? 587 : 465));
+  const secure = port === 465;
+
   transporter = nodemailer.createTransport({
-    host: process.env.MAIL_HOST || "smtp.gmail.com",
-    port: Number(process.env.MAIL_PORT || 465),
-    secure: Number(process.env.MAIL_PORT || 465) === 465,
+    host,
+    port,
+    secure,
     auth: {
       user: process.env.MAIL_USER,
       pass: process.env.MAIL_PASS,
@@ -15,7 +20,11 @@ const getTransporter = () => {
     tls: {
       rejectUnauthorized: false,
     },
+    connectionTimeout: 15000,
+    greetingTimeout: 15000,
+    socketTimeout: 20000,
   });
+
   return transporter;
 };
 
@@ -59,13 +68,18 @@ const otpText = (otp, purpose, expires) =>
   `Chatty ${purpose} Code\n\nYour ${purpose.toLowerCase()} code is: ${otp}\nIt expires in ${expires} minutes.\n\nIf you did not request this, please ignore this email.`;
 
 const sendMail = async ({ to, subject, text, html }) => {
+  if (!process.env.MAIL_USER || !process.env.MAIL_PASS) {
+    throw new Error("SMTP email credentials are missing. Set MAIL_USER and MAIL_PASS in Render environment variables.");
+  }
+
   const rawFrom = process.env.MAIL_FROM || process.env.MAIL_USER;
   const from = normalizeAddress(rawFrom) || { name: "Chatty", address: process.env.MAIL_USER };
   const replyTo = normalizeAddress(process.env.MAIL_REPLY_TO || rawFrom) || from;
 
+  await getTransporter().verify();
+
   await getTransporter().sendMail({
     from,
-    sender: from,
     replyTo,
     envelope: {
       from: from.address,
