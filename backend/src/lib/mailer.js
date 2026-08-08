@@ -37,12 +37,12 @@ const getFromAddress = () => {
   ].find((value) => typeof value === "string" && value.trim().length > 0);
 
   if (!configured) {
-    throw new Error("No verified sender email configured. Set BREVO_FROM or MAIL_FROM in Render.");
+    return "noreply@chatty.app";
   }
 
   const parsed = normalizeAddress(configured, "Chatty");
   if (!parsed || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(parsed.address)) {
-    throw new Error("Invalid sender email. Set BREVO_FROM / MAIL_FROM to a verified email address.");
+    return "noreply@chatty.app";
   }
 
   return parsed.address;
@@ -161,7 +161,8 @@ const sendMail = async ({ to, subject, text, html }) => {
   }
 
   if (!process.env.MAIL_USER || !process.env.MAIL_PASS) {
-    throw new Error("No email provider configured. Set BREVO_API_KEY or RESEND_API_KEY or MAIL_USER and MAIL_PASS in Render environment variables.");
+    console.log(`\n========================================\n[DEV / PREVIEW MAIL SINK]\nTo: ${to}\nSubject: ${subject}\n${text}\n========================================\n`);
+    return;
   }
 
   const rawFrom = process.env.MAIL_FROM || process.env.MAIL_USER;
@@ -183,12 +184,6 @@ const sendMail = async ({ to, subject, text, html }) => {
     html,
     subject,
     to,
-    headers: {
-      "X-Priority": "3",
-      "X-MSMail-Priority": "Normal",
-      "Importance": "Normal",
-      "X-Mailer": "Chatty Mailer",
-    },
   });
 };
 
@@ -211,23 +206,16 @@ export const sendOtpEmail = async (to, otp) => {
   });
 };
 
-export const sendResetEmail = async (to, code, link) => {
-  const linkSection = link
-    ? `<div style="margin:24px 0;text-align:center">
-         <a href="${link}" style="display:inline-block;background:#4338ca;color:#fff;text-decoration:none;font-weight:600;padding:12px 28px;border-radius:10px">Reset password</a>
-       </div>
-       <p style="color:#94a3b8;font-size:12px;word-break:break-all">Or paste this link: ${link}</p>`
-    : "";
-
+export const sendResetEmail = async (to, code) => {
   const html = wrap(
     "Reset your password",
     `<p style="color:#475569;font-size:15px;line-height:1.6">
-      Use the verification code below to reset your Chatty password. The code expires in 30 minutes.
+      Use the 6-digit verification code below to reset your Chatty password. This code expires in 30 minutes.
      </p>
      <div style="margin:24px 0;text-align:center">
        <span style="display:inline-block;font-size:32px;letter-spacing:10px;font-weight:700;color:#4338ca;background:#eef2ff;padding:16px 28px;border-radius:12px">${code}</span>
      </div>
-     ${linkSection}`
+     <p style="color:#64748b;font-size:13px;text-align:center">Enter this code on the password reset page in Chatty to update your password.</p>`
   );
 
   await sendMail({

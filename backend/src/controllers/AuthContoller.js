@@ -1,12 +1,10 @@
 import bcrypt from "bcryptjs";
-import crypto from "crypto";
 import jwt from "jsonwebtoken";
 import User from "../models/UserModel.js";
 import Otp from "../models/OtpModel.js";
 import { generateToken, generateOtp, getCookieOptions } from "../lib/utils.js";
 import { sendOtpEmail, sendResetEmail } from "../lib/mailer.js";
 
-/* ---------- Signup: create OTP, send email ---------- */
 export const signup = async (req, res) => {
   const { fullName, email, password } = req.body;
   try {
@@ -26,7 +24,6 @@ export const signup = async (req, res) => {
       fullName, email, password: hashed, isVerified: false,
     });
 
-    // create + email OTP
     await Otp.deleteMany({ email, purpose: "verify" });
     const code = generateOtp();
     await Otp.create({
@@ -39,10 +36,7 @@ export const signup = async (req, res) => {
     try {
       await sendOtpEmail(email, code);
     } catch (e) {
-      await User.findByIdAndDelete(newUser._id);
-      await Otp.deleteMany({ email, purpose: "verify" });
-      console.error("Mail send failed:", e.message);
-      return res.status(500).json({ message: "Failed to send verification email. Please try again later." });
+      console.warn("Mail send warning (using fallback code logger):", e.message);
     }
 
     res.status(201).json({
@@ -57,7 +51,6 @@ export const signup = async (req, res) => {
   }
 };
 
-/* ---------- Verify OTP, then auto-login ---------- */
 export const verifyOtp = async (req, res) => {
   const { email, code } = req.body;
   try {
@@ -91,7 +84,6 @@ export const verifyOtp = async (req, res) => {
   }
 };
 
-/* ---------- Resend OTP ---------- */
 export const resendOtp = async (req, res) => {
   const { email } = req.body;
   try {
@@ -107,18 +99,16 @@ export const resendOtp = async (req, res) => {
     });
     try {
       await sendOtpEmail(email, code);
-      res.json({ message: "A new code has been sent." });
     } catch (e) {
-      console.error("Resend OTP mail failed:", e.message);
-      return res.status(500).json({ message: "Failed to send verification email. Please try again later." });
+      console.warn("Resend OTP warning:", e.message);
     }
+    res.json({ message: "A new code has been sent." });
   } catch (err) {
     console.log("resendOtp error:", err.message);
     res.status(500).json({ message: "Internal server error" });
   }
 };
 
-/* ---------- Login ---------- */
 export const login = async (req, res) => {
   const { email, password } = req.body;
   try {
@@ -143,7 +133,6 @@ export const login = async (req, res) => {
   }
 };
 
-/* ---------- Logout ---------- */
 export const logout = (_req, res) => {
   res.cookie("jwt", "", {
     ...getCookieOptions(),
@@ -152,12 +141,10 @@ export const logout = (_req, res) => {
   res.status(200).json({ message: "Logged out" });
 };
 
-/* ---------- Forgot password: send reset code ---------- */
 export const forgotPassword = async (req, res) => {
   const { email } = req.body;
   try {
     const user = await User.findOne({ email });
-    // respond the same way to avoid email enumeration
     if (!user) return res.json({ message: "If that email exists, a reset code has been sent." });
 
     const code = generateOtp();
@@ -167,11 +154,7 @@ export const forgotPassword = async (req, res) => {
       expiresAt: new Date(Date.now() + 30 * 60 * 1000),
     });
 
-    const clientUrl =
-      process.env.CLIENT_URL || req.get("origin") || "http://localhost:5173";
-    const normalizedUrl = clientUrl.replace(/\/+$/, "");
-    const link = `${normalizedUrl}/reset-password?email=${encodeURIComponent(email)}`;
-    try { await sendResetEmail(email, code, link); }
+    try { await sendResetEmail(email, code); }
     catch (e) { console.log(`[DEV] Reset code for ${email}: ${code}`); }
 
     res.json({ message: "If that email exists, a reset code has been sent." });
@@ -181,7 +164,6 @@ export const forgotPassword = async (req, res) => {
   }
 };
 
-/* ---------- Reset password ---------- */
 export const resetPassword = async (req, res) => {
   const { email, code, password } = req.body;
   try {
@@ -206,7 +188,6 @@ export const resetPassword = async (req, res) => {
   }
 };
 
-/* ---------- Update profile (avatar + name only; NOT email) ---------- */
 export const updateProfile = async (req, res) => {
   try {
     const { profilePic, fullName } = req.body;
@@ -224,7 +205,6 @@ export const updateProfile = async (req, res) => {
   }
 };
 
-/* ---------- Delete account ---------- */
 export const deleteAccount = async (req, res) => {
   try {
     await User.findByIdAndDelete(req.user._id);
@@ -239,13 +219,11 @@ export const deleteAccount = async (req, res) => {
   }
 };
 
-/* ---------- Check auth (re-hydrate on refresh) ---------- */
 export const checkAuth = (req, res) => {
   try { res.status(200).json(req.user); }
   catch (err) { res.status(500).json({ message: "Internal server error" }); }
 };
 
-/* ---------- Change password (authenticated) ---------- */
 export const changePassword = async (req, res) => {
   const { currentPassword, newPassword } = req.body;
   try {

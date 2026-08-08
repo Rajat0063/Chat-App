@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { Camera, Mail, User, Trash2, Loader2 } from "lucide-react";
+import { Camera, Mail, User, Trash2, Loader2, KeyRound } from "lucide-react";
 import { useAuthStore } from "../store/useAuthStore.js";
+import PasswordStrengthMeter from "../components/PasswordStrengthMeter.jsx";
 
 export default function ProfilePage() {
   const { authUser, isUpdatingProfile, updateProfile, deleteAccount } = useAuthStore();
@@ -106,24 +107,34 @@ export default function ProfilePage() {
           </div>
 
           <div className="bg-base-200 rounded-xl p-6 space-y-3">
-            <h2 className="text-lg font-medium">Change Password</h2>
-            <div className="space-y-2">
+            <h2 className="text-lg font-medium flex items-center gap-2"><KeyRound className="size-5 text-primary" />Change Password</h2>
+            <div className="space-y-3">
               <div>
                 <label className="text-sm text-zinc-400">Current password</label>
                 <input type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)}
-                  className="input input-bordered w-full mt-1.5" />
+                  className="input input-bordered w-full mt-1.5" placeholder="••••••••" />
               </div>
               <div>
                 <label className="text-sm text-zinc-400">New password</label>
                 <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)}
-                  className="input input-bordered w-full mt-1.5" />
+                  className="input input-bordered w-full mt-1.5" placeholder="••••••••" />
               </div>
               <div>
                 <label className="text-sm text-zinc-400">Confirm new password</label>
                 <input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="input input-bordered w-full mt-1.5" />
+                  className="input input-bordered w-full mt-1.5" placeholder="••••••••" />
               </div>
-              <div className="flex justify-end">
+
+              {/* Password Strength Meter & Generator */}
+              <PasswordStrengthMeter
+                password={newPassword}
+                onSuggestPassword={(pwd) => {
+                  setNewPassword(pwd);
+                  setConfirmPassword(pwd);
+                }}
+              />
+
+              <div className="flex justify-end pt-2">
                 <button onClick={handleChangePassword} className="btn btn-primary" disabled={isChangingPassword}>
                   {isChangingPassword ? <Loader2 className="size-5 animate-spin" /> : "Update password"}
                 </button>
