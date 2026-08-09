@@ -1,6 +1,5 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+@plugin "daisyui";
 
 html, body, #root { height: 100%; }
 body { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
@@ -14,33 +13,19 @@ body { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
 }
 
 /* prettier scrollbars */
-::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar { width: 8px; height: 8px; }
 
-/* Use daisyUI theme variables so the scrollbar follows the active theme. */
 :root {
-  /* --p is daisyUI primary color (may be hex or hsl); --bc is base color for track */
-  --chatty-scrollbar-thumb: var(--p, #3b82f6);
-  --chatty-scrollbar-track: var(--bc, #f9fafb);
-  /* Resilient vars: raw (hex) and hsl variants. The HSL declarations will be ignored if invalid for the theme format. */
-  --chatty-scrollbar-thumb-raw: var(--p, #3b82f6);
-  --chatty-scrollbar-track-raw: var(--bc, #f9fafb);
-  --chatty-scrollbar-thumb-hsl: hsl(var(--p) / 0.85);
-  --chatty-scrollbar-track-hsl: hsl(var(--bc) / 0.95);
+  --chatty-scrollbar-thumb: #6366f1;
+  --chatty-scrollbar-track: #f1f5f9;
 }
 
-/* Apply colored scrollbar except where explicitly hidden with .hide-scrollbar */
 *:not(.hide-scrollbar)::-webkit-scrollbar-track {
   background: var(--chatty-scrollbar-track);
-  background: hsl(var(--bc) / 0.95);
 }
 *:not(.hide-scrollbar)::-webkit-scrollbar-thumb {
   background: var(--chatty-scrollbar-thumb) !important;
-  background: hsl(var(--p) / 0.85) !important;
   border-radius: 999px;
 }
 *:not(.hide-scrollbar)::-webkit-scrollbar-thumb:hover { filter: brightness(0.92); }
 *:not(.hide-scrollbar)::-webkit-scrollbar-corner { background: transparent; }
-
-/* Firefox scrollbar support: write raw first, then HSL override (ignored if invalid). */
-*:not(.hide-scrollbar) { scrollbar-width: thin; scrollbar-color: var(--chatty-scrollbar-thumb-raw) var(--chatty-scrollbar-track-raw) !important; }
-*:not(.hide-scrollbar) { scrollbar-color: var(--chatty-scrollbar-thumb-hsl) var(--chatty-scrollbar-track-hsl) !important; }

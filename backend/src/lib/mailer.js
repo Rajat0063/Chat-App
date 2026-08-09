@@ -31,7 +31,6 @@ const getTransporter = () => {
 const getFromAddress = () => {
   const configured = [
     process.env.BREVO_FROM,
-    process.env.RESEND_FROM,
     process.env.MAIL_FROM,
     process.env.MAIL_USER,
   ].find((value) => typeof value === "string" && value.trim().length > 0);
@@ -79,85 +78,12 @@ const sendWithBrevo = async ({ to, subject, text, html }) => {
   return true;
 };
 
-const sendWithResend = async ({ to, subject, text, html }) => {
-  const apiKey = process.env.RESEND_API_KEY;
-  if (!apiKey) return false;
-
-  const response = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      from: getFromAddress(),
-      to: [to],
-      subject,
-      text,
-      html,
-    }),
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Resend API failed: ${response.status} ${errorText}`);
-  }
-
-  return true;
-};
-
-const wrap = (title, body) => `
-<div style="font-family:Inter,Segoe UI,Arial,sans-serif;background:#f4f7fb;padding:40px 0">
-  <div style="max-width:520px;margin:0 auto;background:#fff;border-radius:16px;padding:32px;box-shadow:0 4px 24px rgba(0,0,0,.06)">
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:24px">
-      <div style="width:40px;height:40px;border-radius:10px;background:#e0e7ff;display:flex;align-items:center;justify-content:center">
-        <span style="color:#4338ca;font-size:22px">💬</span>
-      </div>
-      <h1 style="margin:0;font-size:22px;color:#0f172a">Chatty</h1>
-    </div>
-    <span style="display:none;max-height:0;overflow:hidden">Verify your Chatty account with this code.</span>
-    <h2 style="margin:0 0 12px;color:#0f172a;font-size:20px">${title}</h2>
-    ${body}
-    <p style="margin-top:32px;color:#64748b;font-size:12px">If you didn't request this, you can safely ignore this email.</p>
-  </div>
-</div>`;
-
-const normalizeAddress = (value, name = "Chatty") => {
-  if (!value) return undefined;
-  const trimmed = value.trim().replace(/^"|"$/g, "");
-  const angleMatch = trimmed.match(/^(.*)<([^>]+)>$/);
-  if (angleMatch) {
-    const displayName = angleMatch[1].trim() || name;
-    return { name: displayName, address: angleMatch[2].trim() };
-  }
-
-  const parts = trimmed.split(/\s+/);
-  const lastPart = parts[parts.length - 1];
-  const emailMatch = lastPart.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/);
-  if (emailMatch) {
-    const displayName = parts.slice(0, -1).join(" ").trim() || name;
-    return { name: displayName, address: emailMatch[0] };
-  }
-
-  return { name, address: trimmed };
-};
-
-const otpText = (otp, purpose, expires) =>
-  `Chatty ${purpose} Code\n\nYour ${purpose.toLowerCase()} code is: ${otp}\nIt expires in ${expires} minutes.\n\nIf you did not request this, please ignore this email.`;
-
 const sendMail = async ({ to, subject, text, html }) => {
   try {
     const sentViaBrevo = await sendWithBrevo({ to, subject, text, html });
     if (sentViaBrevo) return;
   } catch (brevoError) {
-    console.warn("Brevo failed, trying Resend:", brevoError.message);
-  }
-
-  try {
-    const sentViaResend = await sendWithResend({ to, subject, text, html });
-    if (sentViaResend) return;
-  } catch (resendError) {
-    console.warn("Resend failed, falling back to SMTP:", resendError.message);
+    console.warn("Brevo failed, falling back to SMTP:", brevoError.message);
   }
 
   if (!process.env.MAIL_USER || !process.env.MAIL_PASS) {

@@ -2,14 +2,15 @@ import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 import fs from 'fs';
-import { defineConfig } from 'vite';
+import { defineConfig, Plugin } from 'vite';
 
-function caseInsensitiveResolvePlugin() {
+function caseInsensitiveResolvePlugin(): Plugin {
   return {
     name: 'case-insensitive-resolve',
     enforce: 'pre',
     resolveId(source, importer) {
       if (!importer || source.startsWith('\0') || source.includes('node_modules')) return null;
+      if (!source.startsWith('.') && !source.startsWith('@')) return null;
 
       let resolvedPath = '';
       if (source.startsWith('.')) {
@@ -22,23 +23,18 @@ function caseInsensitiveResolvePlugin() {
         return null;
       }
 
-      if (fs.existsSync(resolvedPath)) return null;
+      if (!resolvedPath.includes(path.resolve(__dirname, 'src'))) return null;
 
       const parentDir = path.dirname(resolvedPath);
       const targetBase = path.basename(resolvedPath).toLowerCase();
+      const targetBaseNoExt = targetBase.replace(/\.(jsx|js|tsx|ts)$/, '');
 
       if (fs.existsSync(parentDir)) {
         const files = fs.readdirSync(parentDir);
-        const matched = files.find((f) => f.toLowerCase() === targetBase);
+        const matched = files.find((f) => f.toLowerCase() === targetBase) ||
+                        files.find((f) => f.toLowerCase().replace(/\.(jsx|js|tsx|ts)$/, '') === targetBaseNoExt);
         if (matched) {
           return path.join(parentDir, matched);
-        }
-        const targetBaseNoExt = targetBase.replace(/\.(jsx|js|tsx|ts)$/, '');
-        const matchedExt = files.find(
-          (f) => f.toLowerCase().replace(/\.(jsx|js|tsx|ts)$/, '') === targetBaseNoExt
-        );
-        if (matchedExt) {
-          return path.join(parentDir, matchedExt);
         }
       }
       return null;
