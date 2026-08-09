@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from "react";
 import {
-  MessageSquare, ShieldCheck, Zap, Image, Users, Sparkles, UserCheck,
-  PlusCircle, Database, Search, ArrowRight, Bookmark, CheckCircle2,
-  RefreshCw, Lock, Radio, Activity, Copy, Check
+  MessageSquare, ShieldCheck, Zap, Users, UserCheck,
+  PlusCircle, Search, ArrowRight, Bookmark, CheckCircle2,
+  Radio, Activity, LifeBuoy, AlertTriangle, Send, Check, Clock,
+  MessageCircle, ThumbsUp, Flame
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { useAuthStore } from "../store/useAuthStore.js";
@@ -13,7 +14,7 @@ export default function NoChatSelected() {
   const { authUser, onlineUsers } = useAuthStore();
   const { users, groups, setSelectedUser, setSelectedGroup } = useChatStore();
 
-  const [activeTab, setActiveTab] = useState("overview"); // overview, notes, otp
+  const [activeTab, setActiveTab] = useState("overview"); // overview, notes, feedback
   const [searchTerm, setSearchTerm] = useState("");
   
   // Scratchpad Notes State
@@ -21,8 +22,7 @@ export default function NoChatSelected() {
     try {
       const saved = localStorage.getItem("chatty_scratchpad_notes");
       return saved ? JSON.parse(saved) : [
-        { id: "1", title: "Meeting Agenda", content: "Discuss real-time socket performance and MongoDB OTP persistence.", date: "Today" },
-        { id: "2", title: "Project Links", content: "Repo: Chatty Realtime App with JWT & Socket.io", date: "Yesterday" }
+        { id: "1", title: "Project Sync", content: "Chat application updated with real-time socket delivery & feedback system.", date: "Today" },
       ];
     } catch {
       return [];
@@ -31,26 +31,36 @@ export default function NoChatSelected() {
   const [newNoteTitle, setNewNoteTitle] = useState("");
   const [newNoteContent, setNewNoteContent] = useState("");
 
-  // OTP DB Debug State
-  const [otpDebugEmail, setOtpDebugEmail] = useState(authUser?.email || "");
-  const [otpDebugData, setOtpDebugData] = useState(null);
-  const [isLoadingOtpDebug, setIsLoadingOtpDebug] = useState(false);
-  const [copiedOtp, setCopiedOtp] = useState("");
+  // Feedback & Bug Reporting State
+  const [feedbackType, setFeedbackType] = useState("bug");
+  const [feedbackSeverity, setFeedbackSeverity] = useState("medium");
+  const [feedbackSubject, setFeedbackSubject] = useState("");
+  const [feedbackDescription, setFeedbackDescription] = useState("");
+  const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false);
+  const [myFeedbacks, setMyFeedbacks] = useState([]);
+  const [isLoadingFeedbacks, setIsLoadingLoadingFeedbacks] = useState(false);
 
   useEffect(() => {
     localStorage.setItem("chatty_scratchpad_notes", JSON.stringify(notes));
   }, [notes]);
 
-  const safeOnlineCount = Math.max(0, (onlineUsers?.length || 0) - 1);
+  useEffect(() => {
+    if (activeTab === "feedback") {
+      fetchMyFeedbacks();
+    }
+  }, [activeTab]);
 
-  const filteredUsers = users.filter((u) =>
-    u.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    u.email.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  const filteredGroups = groups.filter((g) =>
-    g.name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const fetchMyFeedbacks = async () => {
+    setIsLoadingLoadingFeedbacks(true);
+    try {
+      const res = await axiosInstance.get("/feedback/my");
+      setMyFeedbacks(res.data || []);
+    } catch (err) {
+      console.error("Failed to load feedback history:", err);
+    } finally {
+      setIsLoadingLoadingFeedbacks(false);
+    }
+  };
 
   const handleAddNote = (e) => {
     e.preventDefault();
@@ -72,26 +82,41 @@ export default function NoChatSelected() {
     toast.success("Note removed");
   };
 
-  const fetchOtpDebug = async () => {
-    if (!otpDebugEmail.trim()) return toast.error("Please enter an email");
-    setIsLoadingOtpDebug(true);
+  const handleSubmitFeedback = async (e) => {
+    e.preventDefault();
+    if (!feedbackSubject.trim() || !feedbackDescription.trim()) {
+      return toast.error("Please fill in both subject and description");
+    }
+
+    setIsSubmittingFeedback(true);
     try {
-      const res = await axiosInstance.get(`/auth/debug-otp?email=${encodeURIComponent(otpDebugEmail.trim())}`);
-      setOtpDebugData(res.data);
-      toast.success("Fetched MongoDB OTP Records!");
+      const res = await axiosInstance.post("/feedback/submit", {
+        type: feedbackType,
+        severity: feedbackSeverity,
+        subject: feedbackSubject.trim(),
+        description: feedbackDescription.trim(),
+      });
+      toast.success(res.data?.message || "Report submitted to application builder!");
+      setFeedbackSubject("");
+      setFeedbackDescription("");
+      fetchMyFeedbacks();
     } catch (err) {
-      toast.error(err?.response?.data?.message || "Failed to fetch OTP status");
+      toast.error(err?.response?.data?.message || "Failed to submit feedback");
     } finally {
-      setIsLoadingOtpDebug(false);
+      setIsSubmittingFeedback(false);
     }
   };
 
-  const handleCopy = (code) => {
-    navigator.clipboard.writeText(code);
-    setCopiedOtp(code);
-    toast.success("Code copied!");
-    setTimeout(() => setCopiedOtp(""), 2000);
-  };
+  const safeOnlineCount = Math.max(0, (onlineUsers?.length || 0) - 1);
+
+  const filteredUsers = users.filter((u) =>
+    u.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    u.email.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const filteredGroups = groups.filter((g) =>
+    g.name.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   return (
     <div className="w-full flex flex-1 flex-col p-4 sm:p-6 lg:p-8 bg-gradient-to-b from-base-100/60 via-base-100 to-base-200/40 overflow-y-auto">
@@ -120,7 +145,7 @@ export default function NoChatSelected() {
                 <span className="badge badge-primary badge-outline text-[10px] font-bold">Pro Workspace</span>
               </div>
               <p className="text-xs sm:text-sm text-base-content/60 mt-1">
-                Real-time Chat, Group Channels & Database Integrated Dashboard
+                Real-time Chat, Group Channels & Application Feedback Hub
               </p>
             </div>
           </div>
@@ -157,14 +182,14 @@ export default function NoChatSelected() {
           </button>
 
           <button
-            onClick={() => setActiveTab("otp")}
+            onClick={() => setActiveTab("feedback")}
             className={`btn btn-sm rounded-xl gap-2 transition-all ${
-              activeTab === "otp" ? "btn-primary shadow-sm" : "btn-ghost text-base-content/70"
+              activeTab === "feedback" ? "btn-primary shadow-sm" : "btn-ghost text-base-content/70"
             }`}
           >
-            <Database className="size-4" />
-            <span>MongoDB OTP Inspector</span>
-            <span className="badge badge-xs badge-success">Saved in DB</span>
+            <LifeBuoy className="size-4 text-warning" />
+            <span>Report Issue & Feedback</span>
+            {myFeedbacks.length > 0 && <span className="badge badge-sm badge-outline">{myFeedbacks.length}</span>}
           </button>
         </div>
 
@@ -198,10 +223,10 @@ export default function NoChatSelected() {
               </div>
 
               <div className="bg-base-100 p-4 rounded-2xl border border-base-300/80 shadow-xs flex flex-col">
-                <span className="text-xs text-base-content/60 font-medium">Message Engine</span>
-                <span className="text-2xl font-black text-emerald-500 mt-1">0ms</span>
+                <span className="text-xs text-base-content/60 font-medium">Message Delivery</span>
+                <span className="text-2xl font-black text-emerald-500 mt-1">Instant</span>
                 <span className="text-[10px] text-emerald-500 font-semibold mt-2 flex items-center gap-1">
-                  <CheckCircle2 className="size-3" /> Deduplication Guard
+                  <CheckCircle2 className="size-3" /> Anti-Duplicate Guard
                 </span>
               </div>
             </div>
@@ -301,7 +326,7 @@ export default function NoChatSelected() {
               )}
             </div>
 
-            {/* Production Quality Highlights */}
+            {/* Highlights */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="p-4 rounded-2xl bg-base-100 border border-base-300/80 flex items-center gap-3">
                 <div className="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-500">
@@ -319,17 +344,17 @@ export default function NoChatSelected() {
                 </div>
                 <div>
                   <div className="text-xs font-bold">Anti-Duplication</div>
-                  <div className="text-[11px] text-base-content/60 mt-0.5">Client Temp ID & Store Guards</div>
+                  <div className="text-[11px] text-base-content/60 mt-0.5">Zero double messages on click</div>
                 </div>
               </div>
 
               <div className="p-4 rounded-2xl bg-base-100 border border-base-300/80 flex items-center gap-3">
-                <div className="p-2.5 rounded-xl bg-indigo-500/10 text-indigo-500">
-                  <Database className="size-5" />
+                <div className="p-2.5 rounded-xl bg-warning/10 text-warning">
+                  <LifeBuoy className="size-5" />
                 </div>
                 <div>
-                  <div className="text-xs font-bold">MongoDB Stored OTP</div>
-                  <div className="text-[11px] text-base-content/60 mt-0.5">Audited & saved on User & Otp schemas</div>
+                  <div className="text-xs font-bold">Feedback System</div>
+                  <div className="text-[11px] text-base-content/60 mt-0.5">Direct complaint & bug report hub</div>
                 </div>
               </div>
             </div>
@@ -400,96 +425,165 @@ export default function NoChatSelected() {
           </div>
         )}
 
-        {/* TAB 3: OTP MONGODB INSPECTOR */}
-        {activeTab === "otp" && (
-          <div className="space-y-5 animate-in fade-in duration-200">
-            <div className="bg-base-100 p-5 rounded-2xl border border-base-300/80 shadow-xs space-y-4">
+        {/* TAB 3: FEEDBACK & BUG REPORTING */}
+        {activeTab === "feedback" && (
+          <div className="space-y-6 animate-in fade-in duration-200">
+            {/* Feedback Form Card */}
+            <div className="bg-base-100 p-5 sm:p-6 rounded-2xl border border-base-300/80 shadow-xs space-y-4">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <h3 className="font-bold text-base flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
-                    <Database className="size-5" /> MongoDB OTP Persistence Inspector
+                  <h3 className="font-bold text-base sm:text-lg flex items-center gap-2 text-warning">
+                    <LifeBuoy className="size-5" /> Notify Application Builder / Submit Feedback
                   </h3>
                   <p className="text-xs text-base-content/60 mt-0.5">
-                    Verify that OTPs are actively stored in both MongoDB <code className="bg-base-200 px-1 py-0.5 rounded font-mono">otps</code> collection AND <code className="bg-base-200 px-1 py-0.5 rounded font-mono">users</code> schema fields (<code className="bg-base-200 px-1 py-0.5 rounded font-mono">verificationOtp</code>).
+                    Encountered a bug, speed issue, or have a complaint/suggestion? Send feedback directly to the application builder.
                   </p>
-                </div>
-
-                <div className="badge badge-success gap-1 text-[10px] py-2 px-3 font-bold">
-                  <CheckCircle2 className="size-3" /> MongoDB Active
                 </div>
               </div>
 
-              {/* Email lookup form */}
-              <div className="flex items-center gap-2 bg-base-200/60 p-3 rounded-xl border border-base-300/70">
-                <input
-                  type="email"
-                  placeholder="Enter user email (e.g. test@example.com)..."
-                  value={otpDebugEmail}
-                  onChange={(e) => setOtpDebugEmail(e.target.value)}
-                  className="input input-sm flex-1 rounded-lg border-base-300 text-xs font-mono"
-                />
-                <button onClick={fetchOtpDebug} disabled={isLoadingOtpDebug} className="btn btn-sm btn-primary rounded-lg gap-1">
-                  {isLoadingOtpDebug ? <RefreshCw className="size-3.5 animate-spin" /> : <Search className="size-3.5" />}
-                  <span>Inspect Database</span>
+              <form onSubmit={handleSubmitFeedback} className="space-y-4 pt-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* Issue Category */}
+                  <div>
+                    <label className="label text-xs font-bold text-base-content/70">Category</label>
+                    <select
+                      value={feedbackType}
+                      onChange={(e) => setFeedbackType(e.target.value)}
+                      className="select select-sm select-bordered w-full rounded-xl text-xs"
+                    >
+                      <option value="bug">🐛 Bug / Technical Error</option>
+                      <option value="inconvenience">⚡ Performance / Inconvenience</option>
+                      <option value="complaint">😡 Complaint / Bad UX</option>
+                      <option value="feature">💡 Feature Request / Idea</option>
+                      <option value="other">💬 Other Feedback</option>
+                    </select>
+                  </div>
+
+                  {/* Severity */}
+                  <div>
+                    <label className="label text-xs font-bold text-base-content/70">Severity / Urgency</label>
+                    <select
+                      value={feedbackSeverity}
+                      onChange={(e) => setFeedbackSeverity(e.target.value)}
+                      className="select select-sm select-bordered w-full rounded-xl text-xs"
+                    >
+                      <option value="low">🟢 Minor / Low</option>
+                      <option value="medium">🟡 Normal / Medium</option>
+                      <option value="high">🟠 High Urgency</option>
+                      <option value="critical">🔴 Critical / Blocking</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Subject */}
+                <div>
+                  <label className="label text-xs font-bold text-base-content/70">Subject / Summary</label>
+                  <input
+                    type="text"
+                    placeholder="Brief summary of the issue or feedback..."
+                    value={feedbackSubject}
+                    onChange={(e) => setFeedbackSubject(e.target.value)}
+                    className="input input-sm input-bordered w-full rounded-xl text-xs"
+                    required
+                  />
+                </div>
+
+                {/* Description */}
+                <div>
+                  <label className="label text-xs font-bold text-base-content/70">Detailed Description / Steps to Reproduce</label>
+                  <textarea
+                    placeholder="Describe what happened, what went wrong, or what improvement you'd like to see..."
+                    value={feedbackDescription}
+                    onChange={(e) => setFeedbackDescription(e.target.value)}
+                    rows={4}
+                    className="textarea textarea-bordered w-full rounded-xl text-xs"
+                    required
+                  />
+                </div>
+
+                <div className="flex justify-end">
+                  <button
+                    type="submit"
+                    disabled={isSubmittingFeedback || !feedbackSubject.trim() || !feedbackDescription.trim()}
+                    className="btn btn-sm btn-primary rounded-xl gap-2 font-bold"
+                  >
+                    {isSubmittingFeedback ? (
+                      <span className="loading loading-spinner loading-xs" />
+                    ) : (
+                      <Send className="size-4" />
+                    )}
+                    <span>Submit Feedback to Builder</span>
+                  </button>
+                </div>
+              </form>
+            </div>
+
+            {/* Submitted Feedback History */}
+            <div className="bg-base-100 p-5 rounded-2xl border border-base-300/80 shadow-xs space-y-4">
+              <div className="flex items-center justify-between">
+                <h4 className="font-bold text-xs uppercase tracking-wider text-base-content/70 flex items-center gap-1.5">
+                  <MessageCircle className="size-4 text-primary" /> My Submitted Feedback History ({myFeedbacks.length})
+                </h4>
+                <button
+                  onClick={fetchMyFeedbacks}
+                  className="btn btn-ghost btn-xs text-xs text-base-content/60 hover:text-primary"
+                >
+                  Refresh History
                 </button>
               </div>
 
-              {/* Inspection Results */}
-              {otpDebugData && (
-                <div className="space-y-4 pt-2">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {/* User Schema OTP Fields */}
-                    <div className="p-4 rounded-xl bg-base-200/50 border border-base-300/80 space-y-2">
-                      <div className="text-xs font-bold text-primary flex items-center justify-between">
-                        <span>User Document Schema Fields</span>
-                        <span className="text-[10px] text-base-content/60 font-normal">Collection: 'users'</span>
-                      </div>
-                      <div className="text-xs space-y-1 font-mono bg-base-100 p-2.5 rounded-lg border border-base-300">
-                        <div><span className="text-base-content/60">verificationOtp:</span> <strong className="text-emerald-500">{otpDebugData.userFieldOtpInDb?.verificationOtp || "(cleared after verify)"}</strong></div>
-                        <div><span className="text-base-content/60">verificationOtpExpires:</span> {otpDebugData.userFieldOtpInDb?.verificationOtpExpires ? new Date(otpDebugData.userFieldOtpInDb.verificationOtpExpires).toLocaleTimeString() : "N/A"}</div>
-                        <div><span className="text-base-content/60">isVerified:</span> {otpDebugData.userFieldOtpInDb?.isVerified ? "true ✅" : "false ⏳"}</div>
-                        <div><span className="text-base-content/60">resetOtp:</span> {otpDebugData.userFieldOtpInDb?.resetOtp || "None"}</div>
-                      </div>
-                    </div>
+              {isLoadingFeedbacks ? (
+                <div className="text-xs text-base-content/50 py-6 text-center">Loading feedback records...</div>
+              ) : myFeedbacks.length === 0 ? (
+                <div className="text-xs text-base-content/50 py-6 text-center bg-base-200/40 rounded-xl">
+                  No feedback or complaints submitted yet.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {myFeedbacks.map((f) => (
+                    <div
+                      key={f._id}
+                      className="p-4 rounded-xl bg-base-200/40 border border-base-300/70 space-y-2"
+                    >
+                      <div className="flex items-center justify-between flex-wrap gap-2">
+                        <div className="flex items-center gap-2">
+                          <span className={`badge badge-sm font-bold ${
+                            f.type === 'bug' ? 'badge-error' :
+                            f.type === 'complaint' ? 'badge-warning' :
+                            f.type === 'feature' ? 'badge-info' : 'badge-neutral'
+                          }`}>
+                            {f.type.toUpperCase()}
+                          </span>
 
-                    {/* Otps Collection Records */}
-                    <div className="p-4 rounded-xl bg-base-200/50 border border-base-300/80 space-y-2">
-                      <div className="text-xs font-bold text-indigo-500 flex items-center justify-between">
-                        <span>MongoDB 'otps' Collection Log</span>
-                        <span className="text-[10px] text-base-content/60 font-normal">{otpDebugData.otpRecordsCount} records</span>
+                          <span className="font-bold text-xs">{f.subject}</span>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <span className={`badge badge-xs ${
+                            f.status === 'resolved' ? 'badge-success' :
+                            f.status === 'in_review' ? 'badge-warning' : 'badge-ghost'
+                          }`}>
+                            {f.status === 'resolved' ? '✅ Resolved' : f.status === 'in_review' ? '⏳ In Review' : '📥 Pending'}
+                          </span>
+                          <span className="text-[10px] text-base-content/50">
+                            {new Date(f.createdAt).toLocaleDateString()}
+                          </span>
+                        </div>
                       </div>
-                      <div className="text-xs space-y-1 font-mono bg-base-100 p-2.5 rounded-lg border border-base-300 max-h-36 overflow-y-auto">
-                        {otpDebugData.otpRecordsInDb?.length === 0 ? (
-                          <div className="text-base-content/50 italic">No OTP records for this email</div>
-                        ) : (
-                          otpDebugData.otpRecordsInDb.map((rec) => (
-                            <div key={rec._id} className="pb-1.5 mb-1.5 border-b border-base-200 last:border-0 flex items-center justify-between">
-                              <div>
-                                <span className="font-bold text-primary">{rec.code}</span> ({rec.purpose})
-                                <div className="text-[10px] text-base-content/60">{rec.isUsed ? "✅ Used" : "⏳ Active"} | {new Date(rec.createdAt).toLocaleTimeString()}</div>
-                              </div>
-                              <button onClick={() => handleCopy(rec.code)} className="btn btn-ghost btn-xs text-base-content/60 hover:text-primary">
-                                {copiedOtp === rec.code ? <Check className="size-3 text-emerald-500" /> : <Copy className="size-3" />}
-                              </button>
-                            </div>
-                          ))
-                        )}
-                      </div>
+
+                      <p className="text-xs text-base-content/80 whitespace-pre-wrap leading-relaxed bg-base-100 p-2.5 rounded-lg border border-base-300/60">
+                        {f.description}
+                      </p>
+
+                      {f.adminResponse && (
+                        <div className="p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-600 dark:text-emerald-400 font-medium">
+                          <strong>Builder Note:</strong> {f.adminResponse}
+                        </div>
+                      )}
                     </div>
-                  </div>
+                  ))}
                 </div>
               )}
-
-              <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-xs space-y-1">
-                <div className="font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
-                  <ShieldCheck className="size-4" /> Why OTP is safely stored in MongoDB:
-                </div>
-                <p className="text-base-content/70 leading-relaxed">
-                  1. Upon signup or resend, OTP code is saved in <code className="bg-base-100 px-1 py-0.5 rounded font-mono">otps</code> collection and set on <code className="bg-base-100 px-1 py-0.5 rounded font-mono">User.verificationOtp</code> in MongoDB.
-                  <br />
-                  2. Upon verification, the record is marked as <code className="bg-base-100 px-1 py-0.5 rounded font-mono">isUsed: true</code> with timestamp so database audit logs persist for 24 hours.
-                </p>
-              </div>
             </div>
           </div>
         )}
