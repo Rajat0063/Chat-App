@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { Users } from "lucide-react";
+import React, { useEffect, useState } from "react";
+import { Users, Search, Plus, UserCheck, MessageSquare, Radio } from "lucide-react";
 import { useChatStore } from "../store/useChatStore.js";
 import { useAuthStore } from "../store/useAuthStore.js";
 import SidebarSkeleton from "./skeletons/SidebarSkeleton.jsx";
@@ -7,7 +7,10 @@ import SidebarSkeleton from "./skeletons/SidebarSkeleton.jsx";
 export default function Sidebar() {
   const { getUsers, users, selectedUser, setSelectedUser, isUsersLoading } = useChatStore();
   const { getGroups, groups, setSelectedGroup, selectedGroup, createGroup } = useChatStore();
-  const { onlineUsers } = useAuthStore();
+  const { onlineUsers, authUser } = useAuthStore();
+
+  const [searchQuery, setSearchQuery] = useState("");
+  const [activeTab, setActiveTab] = useState("all"); // 'all' | 'direct' | 'groups'
   const [showOnlineOnly, setShowOnlineOnly] = useState(false);
   const [isCreateGroupOpen, setIsCreateGroupOpen] = useState(false);
   const [newGroupName, setNewGroupName] = useState("");
@@ -15,7 +18,6 @@ export default function Sidebar() {
   const [selectedMembers, setSelectedMembers] = useState([]);
   const [newGroupAvatar, setNewGroupAvatar] = useState(null);
   const [isCreatingGroup, setIsCreatingGroup] = useState(false);
-  const { authUser } = useAuthStore();
 
   useEffect(() => { getUsers(); }, [getUsers]);
   useEffect(() => { getGroups(); }, [getGroups]);
@@ -24,140 +26,310 @@ export default function Sidebar() {
   const safeUsers = Array.isArray(users) ? users : [];
   const safeOnlineUsers = Array.isArray(onlineUsers) ? onlineUsers : [];
 
-  const filtered = showOnlineOnly ? safeUsers.filter((u) => safeOnlineUsers.includes(u._id)) : safeUsers;
+  // Filter logic
+  const filteredUsers = safeUsers.filter((u) => {
+    const matchesOnline = showOnlineOnly ? safeOnlineUsers.includes(u._id) : true;
+    const matchesSearch = u.fullName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                          u.email?.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchesOnline && matchesSearch;
+  });
+
+  const filteredGroups = safeGroups.filter((g) => {
+    return g.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+           g.description?.toLowerCase().includes(searchQuery.toLowerCase());
+  });
 
   if (isUsersLoading) return <SidebarSkeleton />;
 
   return (
-    <aside className="h-full flex-none w-20 sm:w-24 md:w-64 lg:w-72 border-r border-base-300 flex flex-col transition-all duration-200 overflow-x-hidden min-w-0">
-      <div className="border-b border-base-300 w-full p-4 sm:p-5">
-        <div className="flex items-center gap-2">
-          <Users className="size-6" />
-          <span className="font-medium hidden lg:block">Contacts</span>
+    <aside className="h-full flex-none w-20 sm:w-28 md:w-72 lg:w-80 bg-base-100/50 flex flex-col transition-all duration-200 overflow-x-hidden min-w-0">
+      {/* Top Header */}
+      <div className="p-3 sm:p-4 border-b border-base-300/80 space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 rounded-xl bg-primary/10 text-primary hidden lg:flex items-center justify-center">
+              <MessageSquare className="size-5" />
+            </div>
+            <div>
+              <h2 className="font-bold text-base hidden lg:block tracking-tight">Messages</h2>
+              <p className="text-[11px] text-base-content/60 hidden lg:block">
+                {safeOnlineUsers.length > 0 ? `${Math.max(0, safeOnlineUsers.length - 1)} online now` : "Workspace Chat"}
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => setIsCreateGroupOpen(true)}
+            className="btn btn-primary btn-sm rounded-xl gap-1 shadow-sm hover:scale-[1.02] transition-transform w-full sm:w-auto"
+            title="Create new group room"
+          >
+            <Plus className="size-4" />
+            <span className="hidden md:inline font-medium">New Group</span>
+          </button>
         </div>
-        <div className="mt-3 hidden lg:flex items-center gap-2">
-          <label className="cursor-pointer flex items-center gap-2">
-            <input type="checkbox" checked={showOnlineOnly}
-              onChange={(e) => setShowOnlineOnly(e.target.checked)} className="checkbox checkbox-sm" />
-            <span className="text-sm">Show online only</span>
-          </label>
-          <span className="text-xs text-zinc-500">({Math.max(0, safeOnlineUsers.length - 1)} online)</span>
+
+        {/* Search Input */}
+        <div className="relative hidden lg:block">
+          <Search className="absolute left-3 top-2.5 size-4 text-base-content/40" />
+          <input
+            type="text"
+            placeholder="Search conversations..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="input input-sm input-bordered w-full pl-9 rounded-xl text-xs bg-base-200/50 focus:bg-base-100 transition-colors"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery("")}
+              className="absolute right-2.5 top-2 text-xs text-base-content/50 hover:text-base-content"
+            >
+              ×
+            </button>
+          )}
         </div>
-      </div>
-      <div className="overflow-y-auto w-full py-3 px-2 min-w-0">
-        <div className="sticky top-0 z-10 bg-base-100/95 backdrop-blur-sm px-1 pb-3 mb-3">
-          <div className="flex items-center justify-center gap-2 mb-2">
-            <button onClick={() => setIsCreateGroupOpen(true)}
-              title="New group"
-              className="btn btn-primary p-2 sm:px-3 sm:py-2 sm:rounded-full flex items-center justify-center gap-2">
-              <Users className="size-7" />
-              <span className="hidden md:inline">New group</span>
+
+        {/* Tabs & Online Filter */}
+        <div className="hidden lg:flex flex-col gap-2 pt-1">
+          <div className="grid grid-cols-3 gap-1 p-1 bg-base-200/70 rounded-xl text-xs font-medium">
+            <button
+              onClick={() => setActiveTab("all")}
+              className={`py-1 rounded-lg text-center transition-all ${activeTab === "all" ? "bg-base-100 font-semibold shadow-xs text-primary" : "text-base-content/70 hover:text-base-content"}`}
+            >
+              All
+            </button>
+            <button
+              onClick={() => setActiveTab("direct")}
+              className={`py-1 rounded-lg text-center transition-all ${activeTab === "direct" ? "bg-base-100 font-semibold shadow-xs text-primary" : "text-base-content/70 hover:text-base-content"}`}
+            >
+              Direct
+            </button>
+            <button
+              onClick={() => setActiveTab("groups")}
+              className={`py-1 rounded-lg text-center transition-all ${activeTab === "groups" ? "bg-base-100 font-semibold shadow-xs text-primary" : "text-base-content/70 hover:text-base-content"}`}
+            >
+              Groups
             </button>
           </div>
+
+          <div className="flex items-center justify-between px-1 text-[11px] text-base-content/70">
+            <label className="cursor-pointer flex items-center gap-2 select-none hover:text-base-content transition-colors">
+              <input
+                type="checkbox"
+                checked={showOnlineOnly}
+                onChange={(e) => setShowOnlineOnly(e.target.checked)}
+                className="checkbox checkbox-xs checkbox-primary rounded"
+              />
+              <span>Online only</span>
+            </label>
+            {safeOnlineUsers.length > 1 && (
+              <span className="inline-flex items-center gap-1 text-emerald-500 font-medium">
+                <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                Active
+              </span>
+            )}
+          </div>
         </div>
-        <div className="space-y-2 mb-3">
-          {safeGroups.map((g) => (
-            <button key={g._id} onClick={() => setSelectedGroup(g)}
-              className={`w-full p-3 min-h-[4rem] flex items-center gap-3 justify-center sm:justify-start rounded-xl hover:bg-base-300 transition-colors ${selectedGroup?._id === g._id ? "bg-base-300" : ""}`}>
-              <div className="relative mx-auto sm:mx-0 size-12 sm:size-14 rounded-full overflow-hidden bg-base-200 flex-shrink-0">
-                <img src={g.avatar || "/avatar.png"} alt={g.name} className="w-full h-full object-cover" />
-              </div>
-              <div className="hidden md:flex flex-col text-left min-w-0 flex-1">
-                <div className="font-medium truncate">{g.name}</div>
-                <div className="text-xs text-zinc-500">{g.members?.length || 0} members</div>
-              </div>
-            </button>
-          ))}
-        </div>
-        <div className="space-y-2">
-          {filtered.map((u) => (
-            <button key={u._id} onClick={() => setSelectedUser(u)}
-              className={`w-full p-3 min-h-[4rem] flex items-center gap-3 justify-center sm:justify-start hover:bg-base-300 transition-colors rounded-xl ${selectedUser?._id === u._id ? "bg-base-300 ring-1 ring-base-300" : ""}`}>
-              <div className="relative mx-auto sm:mx-0 size-12 sm:size-14 rounded-full overflow-visible bg-base-200 flex-shrink-0">
-                <img src={u.profilePic || "/avatar.png"} alt={u.fullName} className="w-full h-full object-cover rounded-full" />
-                {safeOnlineUsers.includes(u._id) && (
-                  <span className="absolute bottom-0 right-0 size-3 bg-green-500 rounded-full ring-2 ring-base-100 z-10" />
-                )}
-              </div>
-              <div className="hidden sm:block lg:block text-left min-w-0 flex-1">
-                <div className="font-medium truncate">{u.fullName}</div>
-                <div className="text-sm text-zinc-400 truncate">{safeOnlineUsers.includes(u._id) ? "Online" : "Offline"}</div>
-              </div>
-            </button>
-          ))}
-        </div>
-        {!filtered.length && <div className="text-center text-zinc-500 py-4">No users</div>}
       </div>
 
-      {isCreateGroupOpen && (
-        <div className="fixed inset-0 z-50 flex items-start sm:items-center justify-center bg-black/40 p-4">
-          <div className="w-full h-full sm:h-auto max-w-full sm:max-w-lg md:max-w-2xl rounded-3xl bg-base-100 shadow-2xl overflow-hidden">
-            <div className="flex items-center justify-between p-4 border-b border-base-200">
-              <div>
-                <h3 className="text-lg font-semibold">Create group</h3>
-                <p className="text-sm text-base-content/60">Add name, avatar, description and members.</p>
-              </div>
-              <button type="button" onClick={() => setIsCreateGroupOpen(false)} className="btn btn-ghost btn-sm btn-circle">×</button>
+      {/* Conversations List */}
+      <div className="flex-1 overflow-y-auto p-2 space-y-1">
+        {/* Groups Section */}
+        {(activeTab === "all" || activeTab === "groups") && filteredGroups.length > 0 && (
+          <div className="space-y-1 mb-3">
+            <div className="px-3 py-1 text-[11px] font-bold text-base-content/40 uppercase tracking-wider hidden lg:block">
+              Group Rooms ({filteredGroups.length})
             </div>
-            <div className="p-4 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 6rem)' }}>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="flex flex-col gap-4">
-                  <label className="block text-sm text-zinc-500">Group name</label>
-                  <input value={newGroupName} onChange={(e) => setNewGroupName(e.target.value)}
-                    className="input input-bordered w-full" placeholder="Enter group name" />
-
-                  <label className="block text-sm text-zinc-500">Description (optional)</label>
-                  <textarea value={newGroupDesc} onChange={(e) => setNewGroupDesc(e.target.value)}
-                    className="textarea textarea-bordered w-full" placeholder="Add a short description" />
-
-                  <div>
-                    <label className="block text-sm text-zinc-500 mb-2">Group avatar (optional)</label>
-                    <div className="flex items-center gap-3">
-                      <div className="relative size-20 rounded-full overflow-hidden bg-base-200">
-                        <img src={newGroupAvatar || "/avatar.png"} alt="preview" className="w-full h-full object-cover" />
-                      </div>
-                      <label className="btn btn-sm btn-ghost">
-                        Upload
-                        <input type="file" accept="image/*" className="hidden" onChange={async (e) => {
-                          const file = e.target.files?.[0]; if (!file) return;
-                          if (file.size > 4 * 1024 * 1024) return alert("Image must be under 4MB");
-                          const reader = new FileReader(); reader.readAsDataURL(file);
-                          reader.onload = () => setNewGroupAvatar(reader.result);
-                        }} />
-                      </label>
+            {filteredGroups.map((g) => {
+              const isSelected = selectedGroup?._id === g._id;
+              return (
+                <button
+                  key={g._id}
+                  onClick={() => setSelectedGroup(g)}
+                  className={`w-full p-2.5 flex items-center gap-3 rounded-xl transition-all duration-150 text-left relative ${
+                    isSelected
+                      ? "bg-primary/10 text-primary font-semibold border-l-4 border-primary shadow-xs"
+                      : "hover:bg-base-200/70 text-base-content/80"
+                  }`}
+                >
+                  <div className="relative size-11 sm:size-12 rounded-xl overflow-hidden bg-base-200 flex-shrink-0 border border-base-300">
+                    <img src={g.avatar || "/avatar.png"} alt={g.name} className="w-full h-full object-cover" />
+                  </div>
+                  <div className="hidden lg:flex flex-col min-w-0 flex-1">
+                    <div className="flex items-center justify-between gap-1">
+                      <span className="font-semibold text-sm truncate">{g.name}</span>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-base-300 text-base-content/70">
+                        {g.members?.length || 0}m
+                      </span>
                     </div>
+                    <p className="text-xs text-base-content/60 truncate font-normal">
+                      {g.description || "Group discussion"}
+                    </p>
                   </div>
-                </div>
+                </button>
+              );
+            })}
+          </div>
+        )}
 
-                <div className="flex flex-col gap-4">
-                  <label className="block text-sm text-zinc-500">Add members</label>
-                  <div className="flex-1 overflow-y-auto border border-base-200 rounded-md p-2" style={{ maxHeight: 320 }}>
-                    {users.filter(u => u._id !== authUser?._id).map((u) => (
-                      <label key={u._id} className="flex items-center gap-2 p-2 rounded hover:bg-base-200 cursor-pointer">
-                        <input type="checkbox" checked={selectedMembers.includes(u._id)}
-                          onChange={() => setSelectedMembers((s) => s.includes(u._id) ? s.filter(id => id !== u._id) : [...s, u._id])}
-                          className="checkbox checkbox-sm" />
-                        <img src={u.profilePic || "/avatar.png"} alt={u.fullName} className="w-8 h-8 rounded-full" />
-                        <span className="text-sm truncate">{u.fullName}</span>
-                      </label>
-                    ))}
+        {/* Direct Messages Section */}
+        {(activeTab === "all" || activeTab === "direct") && (
+          <div className="space-y-1">
+            <div className="px-3 py-1 text-[11px] font-bold text-base-content/40 uppercase tracking-wider hidden lg:block">
+              Direct Messages ({filteredUsers.length})
+            </div>
+            {filteredUsers.map((u) => {
+              const isSelected = selectedUser?._id === u._id;
+              const isOnline = safeOnlineUsers.includes(u._id);
+              return (
+                <button
+                  key={u._id}
+                  onClick={() => setSelectedUser(u)}
+                  className={`w-full p-2.5 flex items-center gap-3 rounded-xl transition-all duration-150 text-left relative ${
+                    isSelected
+                      ? "bg-primary/10 text-primary font-semibold border-l-4 border-primary shadow-xs"
+                      : "hover:bg-base-200/70 text-base-content/80"
+                  }`}
+                >
+                  <div className="relative size-11 sm:size-12 rounded-full bg-base-200 flex-shrink-0 border border-base-300">
+                    <img src={u.profilePic || "/avatar.png"} alt={u.fullName} className="w-full h-full object-cover rounded-full" />
+                    {isOnline && (
+                      <span className="absolute bottom-0 right-0 size-3 bg-emerald-500 rounded-full ring-2 ring-base-100" />
+                    )}
                   </div>
+                  <div className="hidden lg:flex flex-col min-w-0 flex-1">
+                    <div className="flex items-center justify-between gap-1">
+                      <span className="font-semibold text-sm truncate">{u.fullName}</span>
+                      {isOnline && (
+                        <span className="text-[10px] text-emerald-500 font-medium">Online</span>
+                      )}
+                    </div>
+                    <p className="text-xs text-base-content/60 truncate font-normal">
+                      {u.about || (isOnline ? "Active now" : "Offline")}
+                    </p>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        )}
 
-                  <div className="mt-auto flex justify-end gap-2">
-                    <button type="button" onClick={() => setIsCreateGroupOpen(false)} className="btn btn-ghost">Cancel</button>
-                    <button type="button" onClick={async () => {
-                      if (!newGroupName.trim()) return alert("Please enter a group name");
-                      setIsCreatingGroup(true);
-                      await createGroup({ name: newGroupName.trim(), members: selectedMembers, avatar: newGroupAvatar, description: newGroupDesc.trim() });
-                      setIsCreatingGroup(false);
-                      setNewGroupName(""); setNewGroupDesc(""); setSelectedMembers([]); setNewGroupAvatar(null);
-                      setIsCreateGroupOpen(false);
-                    }} className="btn btn-primary" disabled={isCreatingGroup}>
-                      {isCreatingGroup ? "Creating..." : "Create group"}
-                    </button>
+        {/* Empty Search Result State */}
+        {!filteredUsers.length && !filteredGroups.length && (
+          <div className="text-center py-8 px-4 text-base-content/50">
+            <UserCheck className="size-8 mx-auto mb-2 opacity-40" />
+            <p className="text-xs">No conversations found</p>
+          </div>
+        )}
+      </div>
+
+      {/* Create Group Modal */}
+      {isCreateGroupOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4">
+          <div className="w-full max-w-xl rounded-3xl bg-base-100 shadow-2xl border border-base-300 overflow-hidden animate-in fade-in zoom-in duration-150">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-base-200">
+              <div>
+                <h3 className="text-lg font-bold">Create Group Room</h3>
+                <p className="text-xs text-base-content/60">Set up a space for team chats or topic channels</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsCreateGroupOpen(false)}
+                className="btn btn-ghost btn-sm btn-circle"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
+              <div>
+                <label className="block text-xs font-semibold text-base-content/70 uppercase mb-1">Group Name</label>
+                <input
+                  value={newGroupName}
+                  onChange={(e) => setNewGroupName(e.target.value)}
+                  className="input input-bordered w-full rounded-xl text-sm"
+                  placeholder="e.g. Design Team, Project Alpha"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-base-content/70 uppercase mb-1">Description (Optional)</label>
+                <textarea
+                  value={newGroupDesc}
+                  onChange={(e) => setNewGroupDesc(e.target.value)}
+                  className="textarea textarea-bordered w-full rounded-xl text-sm h-20"
+                  placeholder="What is this group for?"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-base-content/70 uppercase mb-2">Group Avatar</label>
+                <div className="flex items-center gap-4">
+                  <div className="relative size-16 rounded-2xl overflow-hidden bg-base-200 border border-base-300">
+                    <img src={newGroupAvatar || "/avatar.png"} alt="Preview" className="w-full h-full object-cover" />
                   </div>
+                  <label className="btn btn-outline btn-sm rounded-xl cursor-pointer">
+                    Upload Photo
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        if (file.size > 4 * 1024 * 1024) return alert("Image must be under 4MB");
+                        const reader = new FileReader();
+                        reader.readAsDataURL(file);
+                        reader.onload = () => setNewGroupAvatar(reader.result);
+                      }}
+                    />
+                  </label>
                 </div>
               </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-base-content/70 uppercase mb-2">Select Members</label>
+                <div className="max-h-40 overflow-y-auto border border-base-200 rounded-xl p-2 space-y-1">
+                  {users.filter(u => u._id !== authUser?._id).map((u) => (
+                    <label key={u._id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-base-200 cursor-pointer text-sm">
+                      <input
+                        type="checkbox"
+                        checked={selectedMembers.includes(u._id)}
+                        onChange={() => setSelectedMembers((s) => s.includes(u._id) ? s.filter(id => id !== u._id) : [...s, u._id])}
+                        className="checkbox checkbox-sm checkbox-primary rounded"
+                      />
+                      <img src={u.profilePic || "/avatar.png"} alt={u.fullName} className="size-7 rounded-full object-cover" />
+                      <span className="font-medium truncate">{u.fullName}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="px-6 py-4 bg-base-200/50 border-t border-base-200 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setIsCreateGroupOpen(false)}
+                className="btn btn-ghost rounded-xl text-sm"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  if (!newGroupName.trim()) return alert("Please enter a group name");
+                  setIsCreatingGroup(true);
+                  await createGroup({ name: newGroupName.trim(), members: selectedMembers, avatar: newGroupAvatar, description: newGroupDesc.trim() });
+                  setIsCreatingGroup(false);
+                  setNewGroupName("");
+                  setNewGroupDesc("");
+                  setSelectedMembers([]);
+                  setNewGroupAvatar(null);
+                  setIsCreateGroupOpen(false);
+                }}
+                className="btn btn-primary rounded-xl text-sm"
+                disabled={isCreatingGroup}
+              >
+                {isCreatingGroup ? "Creating..." : "Create Group"}
+              </button>
             </div>
           </div>
         </div>
@@ -165,3 +337,4 @@ export default function Sidebar() {
     </aside>
   );
 }
+

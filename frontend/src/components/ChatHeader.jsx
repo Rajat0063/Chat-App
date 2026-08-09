@@ -1,3 +1,4 @@
+import React from "react";
 import { useState, useRef, useEffect } from "react";
 import { MoreVertical, X, Loader2 } from "lucide-react";
 import { createPortal } from "react-dom";
@@ -185,52 +186,86 @@ export default function ChatHeader() {
   };
 
   return (
-    <div className="relative flex-shrink-0 p-2.5 border-b border-base-300 bg-base-100">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-3 min-w-0 flex-1 max-w-full">
+    <div className="relative flex-shrink-0 px-4 py-3 border-b border-base-300/80 bg-base-100/80 backdrop-blur-md">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0 flex-1">
           {selectedUser ? (
             <>
-              <button type="button" onClick={() => setAvatarOpen(true)} className="avatar cursor-pointer rounded-full p-1 transition hover:bg-base-200 flex-shrink-0">
-                <div className="size-10 rounded-full relative overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setAvatarOpen(true)}
+                className="relative cursor-pointer transition hover:opacity-90 flex-shrink-0"
+              >
+                <div className="size-11 rounded-full overflow-hidden border border-base-300 bg-base-200">
                   <img src={selectedUser.profilePic || "/avatar.png"} alt={selectedUser.fullName} className="w-full h-full object-cover" />
                 </div>
+                {onlineUsers.includes(selectedUserId) && (
+                  <span className="absolute bottom-0 right-0 size-3 bg-emerald-500 rounded-full ring-2 ring-base-100" />
+                )}
               </button>
-              <button type="button" onClick={() => setProfileOpen(true)} className="flex-1 min-w-0 w-full rounded-2xl p-3 text-left transition hover:bg-base-200">
-                <h3 className="font-medium truncate">{selectedUser.fullName}</h3>
-                <p className="text-sm text-base-content/70 truncate">
-                  {onlineUsers.includes(selectedUserId) ? "Online" : "Offline"}
+              <button
+                type="button"
+                onClick={() => setProfileOpen(true)}
+                className="flex-1 min-w-0 text-left transition hover:opacity-80 group"
+              >
+                <h3 className="font-bold text-sm sm:text-base text-base-content truncate group-hover:text-primary transition-colors">
+                  {selectedUser.fullName}
+                </h3>
+                <p className="text-xs text-base-content/60 truncate flex items-center gap-1.5 font-medium">
+                  {onlineUsers.includes(selectedUserId) ? (
+                    <>
+                      <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                      <span className="text-emerald-500 font-semibold">Active now</span>
+                    </>
+                  ) : (
+                    "Offline"
+                  )}
                 </p>
               </button>
             </>
           ) : (
             <>
-              <button type="button" onClick={() => setAvatarOpen(true)} className="avatar cursor-pointer rounded-full p-1 transition hover:bg-base-200 flex-shrink-0">
-                <div className="size-10 rounded-full relative overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setAvatarOpen(true)}
+                className="relative cursor-pointer transition hover:opacity-90 flex-shrink-0"
+              >
+                <div className="size-11 rounded-xl overflow-hidden border border-base-300 bg-base-200">
                   <img src={selectedGroup.avatar || "/avatar.png"} alt={selectedGroup.name} className="w-full h-full object-cover" />
                 </div>
               </button>
-              <button type="button" onClick={() => setProfileOpen(true)} className="flex-1 min-w-0 w-full rounded-2xl p-3 text-left transition hover:bg-base-200">
-                <div className="min-w-0">
-                  <h3 className="font-medium truncate">{selectedGroup.name}</h3>
-                  <p className="text-sm text-base-content/70 truncate">Group • {selectedGroup.members?.length || 0} members</p>
-                </div>
+              <button
+                type="button"
+                onClick={() => setProfileOpen(true)}
+                className="flex-1 min-w-0 text-left transition hover:opacity-80 group"
+              >
+                <h3 className="font-bold text-sm sm:text-base text-base-content truncate group-hover:text-primary transition-colors">
+                  {selectedGroup.name}
+                </h3>
+                <p className="text-xs text-base-content/60 truncate font-medium">
+                  Group Room • {selectedGroup.members?.length || 0} members
+                </p>
               </button>
             </>
           )}
         </div>
 
-        <div className="flex items-center gap-2 relative">
+        <div className="flex items-center gap-1">
           <button
             ref={buttonRef}
             type="button"
             onClick={() => setMenuOpen((open) => !open)}
-            className="btn btn-ghost btn-sm btn-circle"
+            className="btn btn-ghost btn-sm btn-circle text-base-content/70 hover:text-base-content"
             aria-label="Conversation actions"
           >
-            <MoreVertical />
+            <MoreVertical className="size-5" />
           </button>
-          <button onClick={() => { setSelectedUser(null); setSelectedGroup(null); }} className="btn btn-ghost btn-sm btn-circle">
-            <X />
+          <button
+            onClick={() => { setSelectedUser(null); setSelectedGroup(null); }}
+            className="btn btn-ghost btn-sm btn-circle text-base-content/70 hover:text-base-content"
+            title="Close conversation"
+          >
+            <X className="size-5" />
           </button>
 
           {renderMenu()}

@@ -6,11 +6,12 @@ import { useChatStore } from "../store/useChatStore.js";
 
 export default function HomePage() {
   const { selectedUser, selectedGroup } = useChatStore();
+
   return (
-    <div className="h-[calc(100vh-4rem)] bg-base-200 overflow-hidden">
-      <div className="flex items-center justify-center pt-4 px-4 h-full">
-        <div className="bg-base-100 rounded-lg shadow-xl w-full max-w-6xl h-full min-h-0">
-          <div className="flex h-full rounded-lg overflow-hidden min-h-0">
+    <div className="h-[calc(100vh-4rem)] bg-base-200/60 p-2 sm:p-4 md:p-6 overflow-hidden">
+      <div className="mx-auto h-full max-w-7xl">
+        <div className="bg-base-100/90 backdrop-blur-xl border border-base-300/80 rounded-2xl sm:rounded-3xl shadow-2xl h-full overflow-hidden flex flex-col">
+          <div className="flex h-full min-h-0 divide-x divide-base-300/60 overflow-hidden">
             <Sidebar />
             {!selectedUser && !selectedGroup ? <NoChatSelected /> : <ChatContainer />}
           </div>
@@ -19,3 +20,4 @@ export default function HomePage() {
     </div>
   );
 }
+

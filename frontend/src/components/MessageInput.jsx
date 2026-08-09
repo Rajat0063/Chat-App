@@ -1,5 +1,5 @@
-import { useRef, useState } from "react";
-import { Image, Send, X } from "lucide-react";
+import React, { useRef, useState } from "react";
+import { Image, Send, X, Paperclip } from "lucide-react";
 import toast from "react-hot-toast";
 import { useChatStore } from "../store/useChatStore.js";
 
@@ -45,33 +45,66 @@ export default function MessageInput() {
   };
 
   return (
-    <div className="p-4 w-full">
+    <div className="p-3 sm:p-4 w-full bg-base-100/70 backdrop-blur-md border-t border-base-300/80">
       {imagePreview && (
         <div className="mb-3 flex items-center gap-2">
-          <div className="relative">
-            <img src={imagePreview} alt="Preview" className="w-20 h-20 object-cover rounded-lg border border-zinc-700" />
-            <button onClick={removeImage} type="button"
-              className="absolute -top-1.5 -right-1.5 size-5 rounded-full bg-base-300 flex items-center justify-center">
-              <X className="size-3" />
+          <div className="relative group">
+            <img
+              src={imagePreview}
+              alt="Preview"
+              className="size-20 object-cover rounded-xl border border-base-300 shadow-md"
+            />
+            <button
+              onClick={removeImage}
+              type="button"
+              className="absolute -top-2 -right-2 size-6 rounded-full bg-base-300 text-base-content hover:bg-error hover:text-white flex items-center justify-center shadow-md transition-colors"
+            >
+              <X className="size-3.5" />
             </button>
           </div>
         </div>
       )}
+
       <form onSubmit={handleSend} className="flex items-center gap-2">
-        <div className="flex-1 flex gap-2">
-          <input type="text" placeholder="Type a message..."
-            className="w-full input input-bordered rounded-lg input-sm sm:input-md"
-            value={text} onChange={(e) => setText(e.target.value)} />
-          <input type="file" accept="image/*" ref={fileRef} className="hidden" onChange={handleImageChange} />
-          <button type="button" onClick={() => fileRef.current?.click()}
-            className={`hidden sm:flex btn btn-circle ${imagePreview ? "text-emerald-500" : "text-zinc-400"}`}>
-            <Image size={20} />
+        <div className="flex-1 flex items-center gap-2 bg-base-200/60 focus-within:bg-base-100 focus-within:border-primary/50 border border-base-300/80 rounded-2xl px-3 py-1.5 transition-all shadow-xs">
+          <input
+            type="file"
+            accept="image/*"
+            ref={fileRef}
+            className="hidden"
+            onChange={handleImageChange}
+          />
+          
+          <button
+            type="button"
+            onClick={() => fileRef.current?.click()}
+            className={`p-2 rounded-xl transition-colors hover:bg-base-300/60 ${
+              imagePreview ? "text-emerald-500 bg-emerald-500/10" : "text-base-content/50 hover:text-base-content"
+            }`}
+            title="Attach image"
+          >
+            <Paperclip className="size-5" />
           </button>
+
+          <input
+            type="text"
+            placeholder="Type a message..."
+            className="w-full bg-transparent border-none outline-none text-sm text-base-content placeholder:text-base-content/40 py-1.5"
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+          />
         </div>
-        <button type="submit" className="btn btn-sm btn-circle btn-primary" disabled={isSending || (!text.trim() && !imagePreview)}>
-          <Send size={18} />
+
+        <button
+          type="submit"
+          disabled={isSending || (!text.trim() && !imagePreview)}
+          className="btn btn-primary rounded-2xl px-4 shadow-md hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50"
+        >
+          <Send className="size-4" />
+          <span className="hidden sm:inline font-semibold text-xs">Send</span>
         </button>
       </form>
     </div>
   );
 }
+
