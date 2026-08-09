@@ -21,6 +21,10 @@ export default function App() {
   const { authUser, checkAuth, isCheckingAuth } = useAuthStore();
   const { theme } = useThemeStore();
 
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", theme);
+  }, [theme]);
+
   useEffect(() => { checkAuth(); }, [checkAuth]);
 
   if (isCheckingAuth && !authUser) {
