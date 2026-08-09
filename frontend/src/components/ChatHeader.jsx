@@ -1,6 +1,6 @@
 import React from "react";
 import { useState, useRef, useEffect } from "react";
-import { MoreVertical, X, Loader2 } from "lucide-react";
+import { MoreVertical, X, Loader2, Camera } from "lucide-react";
 import { createPortal } from "react-dom";
 import { useAuthStore } from "../store/useAuthStore.js";
 import { useChatStore } from "../store/useChatStore.js";
@@ -272,209 +272,309 @@ export default function ChatHeader() {
         </div>
       </div>
 
-      {profileOpen && (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/30 p-4">
-          <div className="mx-auto flex w-full max-w-[95vw] sm:max-w-md max-h-[calc(100vh-2rem)] flex-col overflow-hidden rounded-3xl bg-base-100 shadow-2xl">
-            <div className="flex h-full min-h-0 flex-col">
-              <div className="flex items-start justify-between gap-4 border-b border-base-200 p-6">
-                <div>
-                  <h2 className="text-xl font-semibold">{selectedUser ? selectedUser.fullName : selectedGroup.name}</h2>
-                  <p className="text-sm text-base-content/70">{selectedUser ? "Conversation partner profile" : "Group details"}</p>
+      {/* Profile Details Modal */}
+      {profileOpen && createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="w-full max-w-md rounded-3xl bg-base-100 shadow-2xl border border-base-300 overflow-hidden flex flex-col max-h-[85vh]">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-base-200 bg-base-100 flex-shrink-0">
+              <div>
+                <h3 className="text-lg font-bold text-base-content">
+                  {selectedUser ? selectedUser.fullName : selectedGroup?.name}
+                </h3>
+                <p className="text-xs text-base-content/60">
+                  {selectedUser ? "User Profile Information" : "Group Room Details"}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setProfileOpen(false)}
+                className="btn btn-ghost btn-sm btn-circle text-base-content/60 hover:text-base-content"
+              >
+                <X className="size-5" />
+              </button>
+            </div>
+
+            {/* Scrollable Body */}
+            <div className="p-6 overflow-y-auto flex-1 space-y-5">
+              {/* Main Avatar Center */}
+              <div className="flex flex-col items-center justify-center text-center">
+                <div className="relative inline-flex group">
+                  <button
+                    type="button"
+                    onClick={() => setAvatarOpen(true)}
+                    className="relative size-28 rounded-full overflow-hidden border-2 border-primary/20 p-1 bg-base-200 hover:opacity-95 transition-opacity"
+                    title="Click to expand view"
+                  >
+                    <img
+                      src={selectedUser ? (selectedUser.profilePic || "/avatar.png") : (selectedGroup?.avatar || "/avatar.png")}
+                      alt={selectedUser ? selectedUser.fullName : selectedGroup?.name}
+                      className="w-full h-full rounded-full object-cover"
+                    />
+                  </button>
+
+                  {avatarUploading && (
+                    <div className="absolute inset-0 flex items-center justify-center rounded-full bg-black/50">
+                      <Loader2 className="size-8 animate-spin text-white" />
+                    </div>
+                  )}
+
+                  {!selectedUser && isGroupOwner && (
+                    <label className="absolute bottom-0 right-0 p-2 rounded-full bg-primary text-primary-content shadow-lg cursor-pointer hover:scale-105 transition-transform">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={handleGroupAvatarChange}
+                        disabled={actionLoading || avatarUploading}
+                      />
+                      <Camera className="size-4" />
+                    </label>
+                  )}
                 </div>
-                <button type="button" onClick={() => setProfileOpen(false)} className="btn btn-ghost btn-sm btn-circle">
-                  <X />
-                </button>
+
+                <h4 className="mt-3 font-bold text-lg text-base-content">
+                  {selectedUser ? selectedUser.fullName : selectedGroup?.name}
+                </h4>
+                <p className="text-xs text-base-content/60">
+                  {selectedUser
+                    ? (onlineUsers.includes(selectedUserId) ? "Active Now" : "Offline")
+                    : `${selectedGroup?.members?.length || 0} Members`}
+                </p>
               </div>
 
-              <div className="flex-1 overflow-y-auto p-6 min-h-0">
-                <div className="mt-6 flex flex-col items-center justify-center gap-4 text-center">
-                  <div className="relative inline-flex">
-                    <button type="button" onClick={() => setAvatarOpen(true)} className="rounded-full transition hover:ring-2 hover:ring-primary focus:outline-none">
-                      <img
-                        src={selectedUser ? (selectedUser.profilePic || "/avatar.png") : (selectedGroup.avatar || "/avatar.png")}
-                        alt={selectedUser ? selectedUser.fullName : selectedGroup.name}
-                        className="size-28 rounded-full object-cover"
-                      />
-                    </button>
-                    {avatarUploading && (
-                      <div className="absolute inset-0 flex items-center justify-center rounded-full bg-black/40">
-                        <Loader2 className="size-12 animate-spin text-white" />
-                      </div>
-                    )}
-                    {!selectedUser && isGroupOwner && (
-                      <label className={`absolute right-0 bottom-0 rounded-full bg-base-200 p-2 cursor-pointer ${actionLoading || avatarUploading ? "pointer-events-none opacity-60" : "hover:bg-base-300"}`}>
-                        <input type="file" accept="image/*" className="hidden" onChange={handleGroupAvatarChange} disabled={actionLoading || avatarUploading} />
-                        Change
-                      </label>
-                    )}
-                  </div>
-                </div>
+              {/* Details Cards */}
+              <div className="space-y-3">
+                {selectedUser ? (
+                  <>
+                    <div className="p-3.5 rounded-2xl bg-base-200/50 border border-base-300/80">
+                      <span className="text-[11px] font-semibold text-base-content/50 uppercase tracking-wider block mb-0.5">
+                        Email Address
+                      </span>
+                      <p className="text-sm font-medium text-base-content">{selectedUser.email || "Not specified"}</p>
+                    </div>
 
-                <div className="space-y-3 w-full mt-6">
-                  {selectedUser ? (
-                    <>
-                      <div className="rounded-2xl border border-base-300 p-4 text-left">
-                        <p className="text-sm text-zinc-500">Name</p>
-                        <p className="font-medium">{selectedUser.fullName}</p>
-                      </div>
-                      {selectedUser.about && (
-                        <div className="rounded-2xl border border-base-300 p-4 text-left">
-                          <p className="text-sm text-zinc-500">About</p>
-                          <p>{selectedUser.about}</p>
-                        </div>
-                      )}
-                      <div className="rounded-2xl border border-base-300 p-4 text-left">
-                        <p className="text-sm text-zinc-500">Status</p>
-                        <p>{onlineUsers.includes(selectedUserId) ? "Online" : "Offline"}</p>
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <div className="rounded-2xl border border-base-300 p-4 text-left">
-                        <label className="text-sm text-zinc-500 block mb-2">Group name</label>
+                    <div className="p-3.5 rounded-2xl bg-base-200/50 border border-base-300/80">
+                      <span className="text-[11px] font-semibold text-base-content/50 uppercase tracking-wider block mb-0.5">
+                        About / Bio
+                      </span>
+                      <p className="text-sm text-base-content/80 leading-relaxed">
+                        {selectedUser.about || "No bio provided yet."}
+                      </p>
+                    </div>
+
+                    <div className="p-3.5 rounded-2xl bg-base-200/50 border border-base-300/80 flex items-center justify-between">
+                      <span className="text-[11px] font-semibold text-base-content/50 uppercase tracking-wider">
+                        Online Status
+                      </span>
+                      <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
+                        onlineUsers.includes(selectedUserId)
+                          ? "bg-emerald-500/10 text-emerald-500 border border-emerald-500/20"
+                          : "bg-base-300 text-base-content/60"
+                      }`}>
+                        {onlineUsers.includes(selectedUserId) ? "Online" : "Offline"}
+                      </span>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="p-3.5 rounded-2xl bg-base-200/50 border border-base-300/80">
+                      <label className="text-[11px] font-semibold text-base-content/50 uppercase tracking-wider block mb-1">
+                        Group Name
+                      </label>
+                      <div className="flex gap-2">
                         <input
                           value={groupName}
                           onChange={(e) => setGroupName(e.target.value)}
-                          className="input input-bordered w-full"
+                          className="input input-sm input-bordered flex-1 rounded-xl text-sm"
                           disabled={!isGroupOwner}
                         />
-                        <button
-                          onClick={handleGroupRename}
-                          disabled={actionLoading || !groupName.trim() || !isGroupOwner}
-                          className="btn btn-primary btn-sm mt-3"
-                        >
-                          {actionLoading ? "Saving..." : "Save name"}
-                        </button>
-                        {!isGroupOwner && <p className="text-xs text-zinc-500 mt-2">Only the group owner can change name or avatar.</p>}
+                        {isGroupOwner && (
+                          <button
+                            onClick={handleGroupRename}
+                            disabled={actionLoading || !groupName.trim()}
+                            className="btn btn-primary btn-sm rounded-xl text-xs"
+                          >
+                            Save
+                          </button>
+                        )}
                       </div>
-                      <div className="rounded-2xl border border-base-300 p-4 text-left">
-                        <p className="text-sm text-zinc-500">Owner</p>
-                        <p>{selectedGroup.owner?.fullName || "Group owner"}</p>
-                      </div>
-                      {isGroupOwner && (
-                        <div className="rounded-2xl border border-base-300 p-4 text-left">
-                          <p className="text-sm text-zinc-500">Danger zone</p>
-                          <div className="mt-3 grid gap-3 sm:flex sm:items-center sm:justify-start">
-                            <button onClick={() => openConfirmDialog({
-                              title: "Delete group",
-                              message: "Deleting the group will remove it for all members. This cannot be undone.",
-                              action: async () => { await deleteGroup(selectedGroup._id); setProfileOpen(false); setSelectedGroup(null); },
-                              actionLabel: "Delete"
-                            })} className="btn btn-error w-full sm:w-auto">Delete group</button>
-                            <button onClick={async () => { await leaveGroup(selectedGroup._id); setProfileOpen(false); setSelectedGroup(null); }} className="btn btn-ghost w-full sm:w-auto">Leave group</button>
-                          </div>
-                        </div>
+                      {!isGroupOwner && (
+                        <p className="text-[11px] text-base-content/50 mt-1">Only owner can rename group.</p>
                       )}
-                      <div className="rounded-2xl border border-base-300 p-4 text-left">
-                        <p className="text-sm text-zinc-500">Members ({selectedGroup.members?.length || 0})</p>
-                        <div className="mt-2 space-y-2 max-h-64 overflow-y-auto">
-                          {(selectedGroup.members || []).map((member) => {
-                            const id = typeof member === "string" ? member : member._id?.toString();
-                            const name = typeof member === "string" ? member : member.fullName;
-                            const avatar = typeof member === "string" ? "/avatar.png" : member.profilePic || "/avatar.png";
-                            return (
-                              <div key={id} className="flex items-center gap-3">
-                                <img src={avatar} alt={name} className="size-10 rounded-full object-cover" />
-                                <span>{name}</span>
-                              </div>
-                            );
-                          })}
-                        </div>
+                    </div>
+
+                    <div className="p-3.5 rounded-2xl bg-base-200/50 border border-base-300/80">
+                      <span className="text-[11px] font-semibold text-base-content/50 uppercase tracking-wider block mb-1">
+                        Group Owner
+                      </span>
+                      <p className="text-sm font-medium text-base-content">
+                        {selectedGroup?.owner?.fullName || "Group owner"}
+                      </p>
+                    </div>
+
+                    <div className="p-3.5 rounded-2xl bg-base-200/50 border border-base-300/80 space-y-2">
+                      <span className="text-[11px] font-semibold text-base-content/50 uppercase tracking-wider block">
+                        Members ({selectedGroup?.members?.length || 0})
+                      </span>
+                      <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+                        {(selectedGroup?.members || []).map((member) => {
+                          const id = typeof member === "string" ? member : member._id?.toString();
+                          const name = typeof member === "string" ? member : member.fullName;
+                          const avatar = typeof member === "string" ? "/avatar.png" : member.profilePic || "/avatar.png";
+                          return (
+                            <div key={id} className="flex items-center gap-2.5 p-1.5 rounded-xl hover:bg-base-100 transition-colors">
+                              <img src={avatar} alt={name} className="size-8 rounded-full object-cover border border-base-300" />
+                              <span className="text-xs font-semibold text-base-content truncate flex-1">{name}</span>
+                              {selectedGroup?.owner?._id?.toString() === id && (
+                                <span className="text-[10px] px-2 py-0.5 rounded-md bg-primary/10 text-primary font-bold">Owner</span>
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
-                    </>
-                  )}
-                </div>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
-          </div>
-        </div>
-      )}
 
-      {membersOpen && selectedGroup && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
-          <div className="w-full max-w-md rounded-3xl bg-base-100 p-6 shadow-2xl">
-            <div className="flex items-center justify-between gap-4 mb-4">
-              <div>
-                <h2 className="text-xl font-semibold">Group members</h2>
-                <p className="text-sm text-base-content/70">{selectedGroup.name}</p>
-              </div>
-              <button type="button" onClick={() => setMembersOpen(false)} className="btn btn-ghost btn-sm btn-circle">
-                <X />
+            {/* Footer */}
+            <div className="p-4 bg-base-200/50 border-t border-base-200 flex justify-end flex-shrink-0">
+              <button
+                type="button"
+                onClick={() => setProfileOpen(false)}
+                className="btn btn-ghost rounded-xl text-sm"
+              >
+                Close
               </button>
             </div>
-            <div className="space-y-3 max-h-96 overflow-y-auto">
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Members List Modal */}
+      {membersOpen && selectedGroup && createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="w-full max-w-md rounded-3xl bg-base-100 p-6 shadow-2xl border border-base-300 max-h-[85vh] flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between gap-4 mb-4 flex-shrink-0 border-b border-base-200 pb-3">
+              <div>
+                <h3 className="text-lg font-bold text-base-content">Group Members</h3>
+                <p className="text-xs text-base-content/60">{selectedGroup.name}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setMembersOpen(false)}
+                className="btn btn-ghost btn-sm btn-circle text-base-content/60 hover:text-base-content"
+              >
+                <X className="size-5" />
+              </button>
+            </div>
+            <div className="space-y-2 overflow-y-auto flex-1 pr-1">
               {(selectedGroup.members || []).map((member) => {
                 const id = typeof member === "string" ? member : member._id;
                 const name = typeof member === "string" ? member : member.fullName;
                 const avatar = typeof member === "string" ? "/avatar.png" : member.profilePic || "/avatar.png";
                 return (
-                  <div key={id} className="flex items-center gap-3 rounded-2xl border border-base-300 p-3">
-                    <img src={avatar} alt={name} className="size-12 rounded-full object-cover" />
-                    <div className="text-left">
-                      <div className="font-medium">{name}</div>
-                      <div className="text-sm text-zinc-500">{selectedGroup.owner?._id?.toString() === id ? "Owner" : "Member"}</div>
+                  <div key={id} className="flex items-center gap-3 rounded-2xl border border-base-300/80 p-3 bg-base-200/30">
+                    <img src={avatar} alt={name} className="size-10 rounded-full object-cover border border-base-300" />
+                    <div className="text-left flex-1 min-w-0">
+                      <div className="font-semibold text-sm truncate">{name}</div>
+                      <div className="text-xs text-base-content/60">
+                        {selectedGroup.owner?._id?.toString() === id ? "Owner" : "Member"}
+                      </div>
                     </div>
                   </div>
                 );
               })}
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
-      {addMembersOpen && selectedGroup && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
-          <div className="w-full max-w-md rounded-3xl bg-base-100 p-6 shadow-2xl">
-            <div className="flex items-center justify-between gap-4 mb-4">
+      {/* Add Members Modal */}
+      {addMembersOpen && selectedGroup && createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="w-full max-w-md rounded-3xl bg-base-100 p-6 shadow-2xl border border-base-300 max-h-[85vh] flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between gap-4 mb-4 flex-shrink-0 border-b border-base-200 pb-3">
               <div>
-                <h2 className="text-xl font-semibold">Add members</h2>
-                <p className="text-sm text-base-content/70">Select users to invite to {selectedGroup.name}</p>
+                <h3 className="text-lg font-bold text-base-content">Add Members</h3>
+                <p className="text-xs text-base-content/60">Select users to add to {selectedGroup.name}</p>
               </div>
-              <button type="button" onClick={() => setAddMembersOpen(false)} className="btn btn-ghost btn-sm btn-circle">
-                <X />
+              <button
+                type="button"
+                onClick={() => setAddMembersOpen(false)}
+                className="btn btn-ghost btn-sm btn-circle text-base-content/60 hover:text-base-content"
+              >
+                <X className="size-5" />
               </button>
             </div>
-            <div className="space-y-3 max-h-80 overflow-y-auto mb-4">
+
+            <div className="space-y-2 overflow-y-auto flex-1 mb-4 pr-1">
               {availableUsers.length ? availableUsers.map((user) => {
                 const isSelected = selectedMemberIds.includes(user._id);
                 return (
-                  <label key={user._id} className="flex items-center gap-3 rounded-2xl border border-base-300 p-3 cursor-pointer hover:bg-base-200">
-                    <input type="checkbox" checked={isSelected} onChange={() => {
-                      setSelectedMemberIds((prev) => prev.includes(user._id) ? prev.filter((id) => id !== user._id) : [...prev, user._id]);
-                    }} className="checkbox" />
-                    <img src={user.profilePic || "/avatar.png"} alt={user.fullName} className="size-12 rounded-full object-cover" />
-                    <div className="text-left">
-                      <div className="font-medium">{user.fullName}</div>
-                      <div className="text-sm text-zinc-500">{user.email || "User"}</div>
+                  <label key={user._id} className="flex items-center gap-3 rounded-2xl border border-base-300/80 p-3 cursor-pointer hover:bg-base-200/60 transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => {
+                        setSelectedMemberIds((prev) => prev.includes(user._id) ? prev.filter((id) => id !== user._id) : [...prev, user._id]);
+                      }}
+                      className="checkbox checkbox-sm checkbox-primary rounded"
+                    />
+                    <img src={user.profilePic || "/avatar.png"} alt={user.fullName} className="size-10 rounded-full object-cover border border-base-300" />
+                    <div className="text-left flex-1 min-w-0">
+                      <div className="font-semibold text-sm truncate">{user.fullName}</div>
+                      <div className="text-xs text-base-content/60 truncate">{user.email || "User"}</div>
                     </div>
                   </label>
                 );
               }) : (
-                <div className="text-center text-zinc-500">No available users to add.</div>
+                <div className="text-center py-6 text-xs text-base-content/50">No available users to add</div>
               )}
             </div>
-            <button type="button" onClick={handleAddMembers} disabled={!selectedMemberIds.length || actionLoading}
-              className="btn btn-primary w-full">
-              {actionLoading ? "Adding..." : `Add ${selectedMemberIds.length} member${selectedMemberIds.length === 1 ? "" : "s"}`}
+
+            <button
+              type="button"
+              onClick={handleAddMembers}
+              disabled={!selectedMemberIds.length || actionLoading}
+              className="btn btn-primary rounded-xl w-full text-sm font-semibold flex-shrink-0"
+            >
+              {actionLoading ? "Adding..." : `Add ${selectedMemberIds.length} Member${selectedMemberIds.length === 1 ? "" : "s"}`}
             </button>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
-      {confirmOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-md rounded-3xl bg-base-100 border border-base-200 p-6 shadow-2xl">
-            <div className="flex items-start justify-between gap-4 mb-4">
+      {/* Confirm Dialog Modal */}
+      {confirmOpen && createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="w-full max-w-sm rounded-3xl bg-base-100 border border-base-300 p-6 shadow-2xl space-y-4">
+            <div className="flex items-start justify-between gap-4">
               <div>
-                <h2 className="text-xl font-semibold">{confirmTitle}</h2>
-                <p className="text-sm text-zinc-500">{confirmMessage}</p>
+                <h3 className="text-lg font-bold text-base-content">{confirmTitle}</h3>
+                <p className="text-xs text-base-content/60 mt-1">{confirmMessage}</p>
               </div>
-              <button type="button" onClick={() => setConfirmOpen(false)} className="btn btn-ghost btn-sm btn-circle">
-                <X />
+              <button
+                type="button"
+                onClick={() => setConfirmOpen(false)}
+                className="btn btn-ghost btn-sm btn-circle text-base-content/60 hover:text-base-content"
+              >
+                <X className="size-5" />
               </button>
             </div>
-            <div className="flex justify-end gap-3">
-              <button type="button" onClick={() => setConfirmOpen(false)} className="btn btn-ghost">Cancel</button>
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setConfirmOpen(false)}
+                className="btn btn-ghost rounded-xl text-sm"
+              >
+                Cancel
+              </button>
               <button
                 type="button"
                 onClick={async () => {
@@ -484,34 +584,48 @@ export default function ChatHeader() {
                   setActionLoading(false);
                   setConfirmOpen(false);
                 }}
-                className="btn btn-primary"
+                className="btn btn-primary rounded-xl text-sm px-5"
                 disabled={actionLoading}
               >
                 {actionLoading ? "Working..." : confirmActionLabel}
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
-      {avatarOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
-          <div className="relative w-full max-w-3xl rounded-3xl overflow-hidden shadow-2xl">
+      {/* Avatar Full Preview Modal */}
+      {avatarOpen && createPortal(
+        <div
+          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/85 backdrop-blur-md p-4 animate-in fade-in duration-200"
+          onClick={() => setAvatarOpen(false)}
+        >
+          <div
+            className="relative max-w-xl w-full flex flex-col items-center justify-center p-2"
+            onClick={(e) => e.stopPropagation()}
+          >
             <button
               type="button"
               onClick={() => setAvatarOpen(false)}
-              className="absolute right-4 top-4 z-50 btn btn-ghost btn-circle"
+              className="absolute -top-12 right-0 z-50 btn btn-circle btn-sm btn-ghost text-white hover:bg-white/20"
               aria-label="Close avatar preview"
             >
-              <X />
+              <X className="size-6" />
             </button>
-            <img
-              src={selectedUser ? (selectedUser.profilePic || "/avatar.png") : (selectedGroup.avatar || "/avatar.png")}
-              alt={selectedUser ? selectedUser.fullName : selectedGroup.name}
-              className="w-full max-h-[85vh] object-contain bg-black"
-            />
+            <div className="overflow-hidden rounded-3xl shadow-2xl border border-white/10 bg-black flex items-center justify-center">
+              <img
+                src={selectedUser ? (selectedUser.profilePic || "/avatar.png") : (selectedGroup?.avatar || "/avatar.png")}
+                alt={selectedUser ? selectedUser.fullName : selectedGroup?.name}
+                className="max-w-full max-h-[75vh] object-contain rounded-2xl"
+              />
+            </div>
+            <div className="mt-3 px-4 py-1.5 rounded-full bg-white/10 backdrop-blur-md text-white text-xs font-semibold tracking-wide">
+              {selectedUser ? selectedUser.fullName : selectedGroup?.name}
+            </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

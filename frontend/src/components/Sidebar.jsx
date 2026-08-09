@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
-import { Users, Search, Plus, UserCheck, MessageSquare, Radio } from "lucide-react";
+import { createPortal } from "react-dom";
+import { Users, Search, Plus, UserCheck, MessageSquare, Radio, X } from "lucide-react";
 import { useChatStore } from "../store/useChatStore.js";
 import { useAuthStore } from "../store/useAuthStore.js";
 import SidebarSkeleton from "./skeletons/SidebarSkeleton.jsx";
@@ -222,51 +223,57 @@ export default function Sidebar() {
       </div>
 
       {/* Create Group Modal */}
-      {isCreateGroupOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4">
-          <div className="w-full max-w-xl rounded-3xl bg-base-100 shadow-2xl border border-base-300 overflow-hidden animate-in fade-in zoom-in duration-150">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-base-200">
+      {isCreateGroupOpen && createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="w-full max-w-md sm:max-w-lg rounded-3xl bg-base-100 shadow-2xl border border-base-300 flex flex-col overflow-hidden max-h-[85vh]">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-base-200 bg-base-100 flex-shrink-0">
               <div>
-                <h3 className="text-lg font-bold">Create Group Room</h3>
+                <h3 className="text-lg font-bold text-base-content">Create Group Room</h3>
                 <p className="text-xs text-base-content/60">Set up a space for team chats or topic channels</p>
               </div>
               <button
                 type="button"
                 onClick={() => setIsCreateGroupOpen(false)}
-                className="btn btn-ghost btn-sm btn-circle"
+                className="btn btn-ghost btn-sm btn-circle text-base-content/60 hover:text-base-content"
               >
-                ✕
+                <X className="size-5" />
               </button>
             </div>
 
-            <div className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
+            <div className="p-6 space-y-4 overflow-y-auto flex-1">
               <div>
-                <label className="block text-xs font-semibold text-base-content/70 uppercase mb-1">Group Name</label>
+                <label className="block text-xs font-semibold text-base-content/70 uppercase tracking-wider mb-1.5">
+                  Group Name
+                </label>
                 <input
                   value={newGroupName}
                   onChange={(e) => setNewGroupName(e.target.value)}
-                  className="input input-bordered w-full rounded-xl text-sm"
+                  className="input input-bordered w-full rounded-xl text-sm focus:outline-none focus:border-primary"
                   placeholder="e.g. Design Team, Project Alpha"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-base-content/70 uppercase mb-1">Description (Optional)</label>
+                <label className="block text-xs font-semibold text-base-content/70 uppercase tracking-wider mb-1.5">
+                  Description (Optional)
+                </label>
                 <textarea
                   value={newGroupDesc}
                   onChange={(e) => setNewGroupDesc(e.target.value)}
-                  className="textarea textarea-bordered w-full rounded-xl text-sm h-20"
+                  className="textarea textarea-bordered w-full rounded-xl text-sm h-20 focus:outline-none focus:border-primary resize-none"
                   placeholder="What is this group for?"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-base-content/70 uppercase mb-2">Group Avatar</label>
+                <label className="block text-xs font-semibold text-base-content/70 uppercase tracking-wider mb-2">
+                  Group Avatar
+                </label>
                 <div className="flex items-center gap-4">
-                  <div className="relative size-16 rounded-2xl overflow-hidden bg-base-200 border border-base-300">
+                  <div className="relative size-16 rounded-2xl overflow-hidden bg-base-200 border border-base-300 flex-shrink-0">
                     <img src={newGroupAvatar || "/avatar.png"} alt="Preview" className="w-full h-full object-cover" />
                   </div>
-                  <label className="btn btn-outline btn-sm rounded-xl cursor-pointer">
+                  <label className="btn btn-outline btn-sm rounded-xl cursor-pointer hover:bg-primary hover:text-white transition-colors">
                     Upload Photo
                     <input
                       type="file"
@@ -286,25 +293,33 @@ export default function Sidebar() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-base-content/70 uppercase mb-2">Select Members</label>
-                <div className="max-h-40 overflow-y-auto border border-base-200 rounded-xl p-2 space-y-1">
+                <label className="block text-xs font-semibold text-base-content/70 uppercase tracking-wider mb-2">
+                  Select Members
+                </label>
+                <div className="max-h-48 overflow-y-auto border border-base-200 rounded-xl p-2 space-y-1 bg-base-200/40">
                   {users.filter(u => u._id !== authUser?._id).map((u) => (
-                    <label key={u._id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-base-200 cursor-pointer text-sm">
+                    <label key={u._id} className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-base-100 cursor-pointer text-sm transition-colors">
                       <input
                         type="checkbox"
                         checked={selectedMembers.includes(u._id)}
                         onChange={() => setSelectedMembers((s) => s.includes(u._id) ? s.filter(id => id !== u._id) : [...s, u._id])}
                         className="checkbox checkbox-sm checkbox-primary rounded"
                       />
-                      <img src={u.profilePic || "/avatar.png"} alt={u.fullName} className="size-7 rounded-full object-cover" />
-                      <span className="font-medium truncate">{u.fullName}</span>
+                      <img src={u.profilePic || "/avatar.png"} alt={u.fullName} className="size-8 rounded-full object-cover border border-base-300" />
+                      <div className="min-w-0 flex-1">
+                        <p className="font-semibold text-sm truncate">{u.fullName}</p>
+                        <p className="text-xs text-base-content/60 truncate">{u.email || "Member"}</p>
+                      </div>
                     </label>
                   ))}
+                  {users.filter(u => u._id !== authUser?._id).length === 0 && (
+                    <p className="text-xs text-center text-base-content/50 py-3">No other members available</p>
+                  )}
                 </div>
               </div>
             </div>
 
-            <div className="px-6 py-4 bg-base-200/50 border-t border-base-200 flex justify-end gap-2">
+            <div className="px-6 py-4 bg-base-200/50 border-t border-base-200 flex justify-end gap-3 flex-shrink-0">
               <button
                 type="button"
                 onClick={() => setIsCreateGroupOpen(false)}
@@ -325,14 +340,15 @@ export default function Sidebar() {
                   setNewGroupAvatar(null);
                   setIsCreateGroupOpen(false);
                 }}
-                className="btn btn-primary rounded-xl text-sm"
+                className="btn btn-primary rounded-xl text-sm px-5"
                 disabled={isCreatingGroup}
               >
                 {isCreatingGroup ? "Creating..." : "Create Group"}
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </aside>
   );
