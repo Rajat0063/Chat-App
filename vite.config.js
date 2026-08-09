@@ -12,7 +12,6 @@ function caseInsensitiveResolvePlugin() {
     resolveId(source, importer) {
       if (!importer || source.startsWith('\0') || source.includes('node_modules')) return null;
       if (!source.startsWith('.') && !source.startsWith('@')) return null;
-
       let resolvedPath = '';
       if (source.startsWith('.')) {
         resolvedPath = path.resolve(path.dirname(importer), source);
@@ -23,23 +22,18 @@ function caseInsensitiveResolvePlugin() {
       } else {
         return null;
       }
-
       if (!resolvedPath.includes(path.resolve(__dirname, 'src'))) return null;
-
       const parentDir = path.dirname(resolvedPath);
       const targetBase = path.basename(resolvedPath).toLowerCase();
       const targetBaseNoExt = targetBase.replace(/\.(jsx|js|tsx|ts)$/, '');
-
       if (fs.existsSync(parentDir)) {
         const files = fs.readdirSync(parentDir);
-        const matched =
-          files.find((f) => f.toLowerCase() === targetBase) ||
-          files.find((f) => f.toLowerCase().replace(/\.(jsx|js|tsx|ts)$/, '') === targetBaseNoExt);
+        const matched = files.find((f) => f.toLowerCase() === targetBase) ||
+                        files.find((f) => f.toLowerCase().replace(/\.(jsx|js|tsx|ts)$/, '') === targetBaseNoExt);
         if (matched) {
           return path.join(parentDir, matched);
         }
       }
-
       return null;
     },
   };

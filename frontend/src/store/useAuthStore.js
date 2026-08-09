@@ -19,8 +19,13 @@ export const useAuthStore = create((set, get) => ({
   checkAuth: async () => {
     try {
       const res = await axiosInstance.get("/auth/check");
-      set({ authUser: res.data });
-      get().connectSocket();
+      if (res.data && typeof res.data === "object" && res.data._id) {
+        set({ authUser: res.data });
+        get().connectSocket();
+      } else {
+        localStorage.removeItem("chat-token");
+        set({ authUser: null });
+      }
     } catch {
       localStorage.removeItem("chat-token");
       set({ authUser: null });
