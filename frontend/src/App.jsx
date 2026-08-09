@@ -1,5 +1,5 @@
+import React, { useEffect } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
-import { useEffect } from "react";
 import { Loader } from "lucide-react";
 import { Toaster } from "react-hot-toast";
 
