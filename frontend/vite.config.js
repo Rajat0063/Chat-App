@@ -2,12 +2,13 @@ import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 import fs from 'fs';
-import { defineConfig, Plugin } from 'vite';
+import { defineConfig } from 'vite';
 
-function caseInsensitiveResolvePlugin(): Plugin {
-  return {
+function caseInsensitiveResolvePlugin() {
+  /** @type {import('vite').Plugin} */
+  const plugin = {
     name: 'case-insensitive-resolve',
-    enforce: 'pre',
+    enforce: 'pre' as any,
     resolveId(source, importer) {
       if (!importer || source.startsWith('\0') || source.includes('node_modules')) return null;
       if (!source.startsWith('.') && !source.startsWith('@')) return null;
@@ -40,6 +41,7 @@ function caseInsensitiveResolvePlugin(): Plugin {
       return null;
     },
   };
+  return plugin;
 }
 
 export default defineConfig({
