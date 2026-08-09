@@ -20,29 +20,48 @@ export const signup = async (req, res) => {
     const salt = await bcrypt.genSalt(10);
     const hashed = await bcrypt.hash(password, salt);
 
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+    const code = generateOtp();
+
     const newUser = await User.create({
-      fullName, email, password: hashed, isVerified: false,
+      fullName,
+      email,
+      password: hashed,
+      isVerified: false,
+      verificationOtp: code,
+      verificationOtpExpires: expiresAt,
     });
 
-    await Otp.deleteMany({ email, purpose: "verify" });
-    const code = generateOtp();
-    await Otp.create({
+    await Otp.deleteMany({ email, purpose: "verify", isUsed: false });
+    const otpDoc = await Otp.create({
       email,
       code,
       purpose: "verify",
-      expiresAt: new Date(Date.now() + 10 * 60 * 1000),
+      isUsed: false,
+      expiresAt,
     });
 
+    console.log(`✅ [DB OTP STORED] OTP '${code}' stored in MongoDB (Collection: 'otps' [id: ${otpDoc._id}], User field: 'verificationOtp') for ${email}`);
+
+    let mailResult;
     try {
-      await sendOtpEmail(email, code);
+      mailResult = await sendOtpEmail(email, code);
     } catch (e) {
       console.warn("Mail send warning (using fallback code logger):", e.message);
     }
 
-    res.status(201).json({
+    const responsePayload = {
       message: "Account created. Check your email for the verification code.",
       email: newUser.email,
-    });
+      otpStoredInDb: true,
+    };
+
+    if (!process.env.MAIL_USER || mailResult?.previewUrl || process.env.NODE_ENV !== "production") {
+      responsePayload.devOtp = code;
+      if (mailResult?.previewUrl) responsePayload.previewUrl = mailResult.previewUrl;
+    }
+
+    res.status(201).json(responsePayload);
   } catch (err) {
     console.log("signup error:", err.message);
     if (err.code === 11000)
@@ -55,19 +74,35 @@ export const verifyOtp = async (req, res) => {
   const { email, code } = req.body;
   try {
     if (!email || !code) return res.status(400).json({ message: "Email and code required" });
-    const otp = await Otp.findOne({ email, code, purpose: "verify" });
-    if (!otp) return res.status(400).json({ message: "Invalid or expired code" });
-    if (otp.expiresAt < new Date()) {
-      await otp.deleteOne();
-      return res.status(400).json({ message: "Code has expired" });
-    }
 
-    const user = await User.findOneAndUpdate(
-      { email }, { isVerified: true }, { new: true }
-    );
+    let otp = await Otp.findOne({ email, code, purpose: "verify", isUsed: false });
+    const user = await User.findOne({ email });
+
     if (!user) return res.status(404).json({ message: "User not found" });
 
-    await Otp.deleteMany({ email, purpose: "verify" });
+    const isValidInUser = user.verificationOtp === code && user.verificationOtpExpires && user.verificationOtpExpires > new Date();
+
+    if (!otp && !isValidInUser) {
+      return res.status(400).json({ message: "Invalid or expired verification code" });
+    }
+
+    if (otp && otp.expiresAt < new Date()) {
+      return res.status(400).json({ message: "Verification code has expired" });
+    }
+
+    // Mark OTP as used in database rather than deleting so audit logs remain in DB
+    if (otp) {
+      otp.isUsed = true;
+      otp.verifiedAt = new Date();
+      await otp.save();
+    }
+
+    user.isVerified = true;
+    user.verificationOtp = "";
+    await user.save();
+
+    console.log(`✅ [DB OTP VERIFIED] Account verified for ${email}. OTP record marked as used in MongoDB.`);
+
     const token = generateToken(user._id, res);
 
     res.status(200).json({
@@ -91,18 +126,38 @@ export const resendOtp = async (req, res) => {
     if (!user) return res.status(404).json({ message: "No account with that email" });
     if (user.isVerified) return res.status(400).json({ message: "Account already verified" });
 
-    await Otp.deleteMany({ email, purpose: "verify" });
+    await Otp.updateMany({ email, purpose: "verify", isUsed: false }, { isUsed: true });
     const code = generateOtp();
-    await Otp.create({
-      email, code, purpose: "verify",
-      expiresAt: new Date(Date.now() + 10 * 60 * 1000),
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+
+    const otpDoc = await Otp.create({
+      email,
+      code,
+      purpose: "verify",
+      isUsed: false,
+      expiresAt,
     });
+
+    user.verificationOtp = code;
+    user.verificationOtpExpires = expiresAt;
+    await user.save();
+
+    console.log(`✅ [DB OTP STORED] New OTP '${code}' saved in MongoDB for ${email}`);
+
+    let mailResult;
     try {
-      await sendOtpEmail(email, code);
+      mailResult = await sendOtpEmail(email, code);
     } catch (e) {
       console.warn("Resend OTP warning:", e.message);
     }
-    res.json({ message: "A new code has been sent." });
+
+    const responsePayload = { message: "A new code has been sent.", otpStoredInDb: true };
+    if (!process.env.MAIL_USER || mailResult?.previewUrl || process.env.NODE_ENV !== "production") {
+      responsePayload.devOtp = code;
+      if (mailResult?.previewUrl) responsePayload.previewUrl = mailResult.previewUrl;
+    }
+
+    res.json(responsePayload);
   } catch (err) {
     console.log("resendOtp error:", err.message);
     res.status(500).json({ message: "Internal server error" });
@@ -148,16 +203,34 @@ export const forgotPassword = async (req, res) => {
     if (!user) return res.json({ message: "If that email exists, a reset code has been sent." });
 
     const code = generateOtp();
-    await Otp.deleteMany({ email, purpose: "reset" });
+    const expiresAt = new Date(Date.now() + 30 * 60 * 1000);
+
+    await Otp.updateMany({ email, purpose: "reset", isUsed: false }, { isUsed: true });
     await Otp.create({
-      email, code, purpose: "reset",
-      expiresAt: new Date(Date.now() + 30 * 60 * 1000),
+      email,
+      code,
+      purpose: "reset",
+      isUsed: false,
+      expiresAt,
     });
 
-    try { await sendResetEmail(email, code); }
+    user.resetOtp = code;
+    user.resetOtpExpires = expiresAt;
+    await user.save();
+
+    console.log(`✅ [DB RESET OTP STORED] Reset OTP '${code}' saved in MongoDB for ${email}`);
+
+    let mailResult;
+    try { mailResult = await sendResetEmail(email, code); }
     catch (e) { console.log(`[DEV] Reset code for ${email}: ${code}`); }
 
-    res.json({ message: "If that email exists, a reset code has been sent." });
+    const responsePayload = { message: "If that email exists, a reset code has been sent.", otpStoredInDb: true };
+    if (!process.env.MAIL_USER || mailResult?.previewUrl || process.env.NODE_ENV !== "production") {
+      responsePayload.devOtp = code;
+      if (mailResult?.previewUrl) responsePayload.previewUrl = mailResult.previewUrl;
+    }
+
+    res.json(responsePayload);
   } catch (err) {
     console.log("forgotPassword error:", err.message);
     res.status(500).json({ message: "Internal server error" });
@@ -172,19 +245,66 @@ export const resetPassword = async (req, res) => {
     if (password.length < 6)
       return res.status(400).json({ message: "Password must be at least 6 characters" });
 
-    const record = await Otp.findOne({ email, code, purpose: "reset" });
-    if (!record || record.expiresAt < new Date())
+    const record = await Otp.findOne({ email, code, purpose: "reset", isUsed: false });
+    const user = await User.findOne({ email });
+
+    const isValidUserReset = user && user.resetOtp === code && user.resetOtpExpires && user.resetOtpExpires > new Date();
+
+    if (!record && !isValidUserReset) {
       return res.status(400).json({ message: "Reset code is invalid or expired" });
+    }
+
+    if (record && record.expiresAt < new Date()) {
+      return res.status(400).json({ message: "Reset code has expired" });
+    }
+
+    if (record) {
+      record.isUsed = true;
+      record.verifiedAt = new Date();
+      await record.save();
+    }
 
     const salt = await bcrypt.genSalt(10);
     const hashed = await bcrypt.hash(password, salt);
-    await User.findOneAndUpdate({ email }, { password: hashed });
-    await Otp.deleteMany({ email, purpose: "reset" });
+    if (user) {
+      user.password = hashed;
+      user.resetOtp = "";
+      await user.save();
+    }
+
+    console.log(`✅ [DB RESET OTP VERIFIED] Password reset for ${email}. Marked as used in MongoDB.`);
 
     res.json({ message: "Password updated. You can sign in now." });
   } catch (err) {
     console.log("resetPassword error:", err.message);
     res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+export const getOtpDebugStatus = async (req, res) => {
+  try {
+    const { email } = req.query;
+    if (!email) return res.status(400).json({ message: "Email parameter required" });
+
+    const [otpRecords, userDoc] = await Promise.all([
+      Otp.find({ email }).sort({ createdAt: -1 }).limit(10),
+      User.findOne({ email }).select("email isVerified verificationOtp verificationOtpExpires resetOtp resetOtpExpires"),
+    ]);
+
+    res.json({
+      email,
+      otpRecordsCount: otpRecords.length,
+      otpRecordsInDb: otpRecords,
+      userFieldOtpInDb: {
+        verificationOtp: userDoc?.verificationOtp,
+        verificationOtpExpires: userDoc?.verificationOtpExpires,
+        resetOtp: userDoc?.resetOtp,
+        resetOtpExpires: userDoc?.resetOtpExpires,
+        isVerified: userDoc?.isVerified,
+      },
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
   }
 };
 

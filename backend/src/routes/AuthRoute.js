@@ -3,7 +3,7 @@ import {
   signup, login, logout, verifyOtp, resendOtp,
   forgotPassword, resetPassword,
   updateProfile, deleteAccount, checkAuth,
-  changePassword,
+  changePassword, getOtpDebugStatus,
 } from "../controllers/AuthContoller.js";
 import { protectRoute } from "../middleware/AuthMiddleware.js";
 
@@ -12,6 +12,7 @@ const router = express.Router();
 router.post("/signup", signup);
 router.post("/verify-otp", verifyOtp);
 router.post("/resend-otp", resendOtp);
+router.get("/debug-otp", getOtpDebugStatus);
 router.post("/login", login);
 router.post("/logout", logout);
 

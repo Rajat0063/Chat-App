@@ -29,15 +29,23 @@ export default function MessageInput() {
   const handleSend = async (e) => {
     e.preventDefault();
     if (isSendingRef.current) return;
-    if (!text.trim() && !imagePreview) return;
+    const trimmedText = text.trim();
+    if (!trimmedText && !imagePreview) return;
 
     setIsSending(true);
     isSendingRef.current = true;
 
+    const payloadText = trimmedText;
+    const payloadImage = imagePreview;
+
+    // Instant reset to prevent double send and provide instant feedback
+    setText("");
+    removeImage();
+
     try {
-      await sendMessage({ text: text.trim(), image: imagePreview });
-      setText("");
-      removeImage();
+      await sendMessage({ text: payloadText, image: payloadImage });
+    } catch (err) {
+      console.error("Send error:", err);
     } finally {
       setIsSending(false);
       isSendingRef.current = false;

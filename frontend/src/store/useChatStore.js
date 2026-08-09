@@ -5,8 +5,32 @@ import { useAuthStore } from "./useAuthStore.js";
 
 const appendUniqueMessage = (messages, nextMessage) => {
   if (!nextMessage) return messages;
-  if (messages.some((message) => message?._id === nextMessage?._id)) return messages;
-  return [...messages, nextMessage];
+  const list = Array.isArray(messages) ? messages : [];
+
+  const existsIndex = list.findIndex((m) => {
+    if (nextMessage._id && m._id === nextMessage._id) return true;
+    if (nextMessage.clientTempId && (m.clientTempId === nextMessage.clientTempId || m._id === nextMessage.clientTempId)) return true;
+    if (m.clientTempId && nextMessage._id && m.clientTempId === nextMessage._id) return true;
+
+    // Strict deduplication for duplicate text sent by same user within 3 seconds
+    if (m.text && nextMessage.text && m.text.trim() === nextMessage.text.trim()) {
+      const mSender = typeof m.senderId === "object" ? m.senderId?._id?.toString() : m.senderId?.toString();
+      const nSender = typeof nextMessage.senderId === "object" ? nextMessage.senderId?._id?.toString() : nextMessage.senderId?.toString();
+      if (mSender && nSender && mSender === nSender) {
+        const timeDiff = Math.abs(new Date(m.createdAt || Date.now()).getTime() - new Date(nextMessage.createdAt || Date.now()).getTime());
+        if (timeDiff < 3000) return true;
+      }
+    }
+    return false;
+  });
+
+  if (existsIndex >= 0) {
+    const updated = [...list];
+    updated[existsIndex] = { ...updated[existsIndex], ...nextMessage, isSending: false };
+    return updated;
+  }
+
+  return [...list, { ...nextMessage, isSending: false }];
 };
 
 export const useChatStore = create((set, get) => ({
@@ -125,15 +149,34 @@ export const useChatStore = create((set, get) => ({
 
   sendMessage: async (messageData) => {
     const { selectedUser, selectedGroup, messages } = get();
+    const authUser = useAuthStore.getState().authUser;
+    if (!authUser) return;
+
+    const clientTempId = `temp_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const tempMessage = {
+      _id: clientTempId,
+      clientTempId,
+      senderId: authUser._id,
+      receiverId: selectedUser?._id,
+      groupId: selectedGroup?._id,
+      text: messageData.text || "",
+      image: messageData.image || "",
+      createdAt: new Date().toISOString(),
+      isSending: true,
+    };
+
+    set({ messages: appendUniqueMessage(messages, tempMessage) });
+
     try {
       if (selectedGroup) {
-        const res = await axiosInstance.post(`/groups/${selectedGroup._id}/send`, messageData);
-        set({ messages: appendUniqueMessage(messages, res.data) });
+        const res = await axiosInstance.post(`/groups/${selectedGroup._id}/send`, { ...messageData, clientTempId });
+        set({ messages: appendUniqueMessage(get().messages, { ...res.data, clientTempId }) });
       } else if (selectedUser) {
-        const res = await axiosInstance.post(`/messages/send/${selectedUser._id}`, messageData);
-        set({ messages: appendUniqueMessage(messages, res.data) });
+        const res = await axiosInstance.post(`/messages/send/${selectedUser._id}`, { ...messageData, clientTempId });
+        set({ messages: appendUniqueMessage(get().messages, { ...res.data, clientTempId }) });
       }
     } catch (err) {
+      set({ messages: get().messages.filter((m) => m._id !== clientTempId && m.clientTempId !== clientTempId) });
       toast.error(err?.response?.data?.message || "Failed to send");
     }
   },
