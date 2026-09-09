@@ -1,6 +1,5 @@
 import React, { useEffect } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
-import { Loader } from "lucide-react";
 import { Toaster } from "react-hot-toast";
 
 import Navbar from "./components/Navbar.jsx";
@@ -26,14 +25,6 @@ export default function App() {
   }, [theme]);
 
   useEffect(() => { checkAuth(); }, [checkAuth]);
-
-  if (isCheckingAuth && !authUser) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <Loader className="size-10 animate-spin" />
-      </div>
-    );
-  }
 
   return (
     <div data-theme={theme} className="min-h-screen bg-base-200">

@@ -6,9 +6,20 @@ import { useChatStore } from "./useChatStore.js";
 
 const SOCKET_BASE_URL = (import.meta.env.VITE_SOCKET_URL || import.meta.env.VITE_API_URL || "").replace(/\/+$/, "");
 
+const getStoredUser = () => {
+  try {
+    const raw = localStorage.getItem("chat-user");
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+};
+
+const initialUser = getStoredUser();
+
 export const useAuthStore = create((set, get) => ({
-  authUser: null,
-  isCheckingAuth: true,
+  authUser: initialUser,
+  isCheckingAuth: false,
   isSigningUp: false,
   isLoggingIn: false,
   isUpdatingProfile: false,
@@ -20,14 +31,17 @@ export const useAuthStore = create((set, get) => ({
     try {
       const res = await axiosInstance.get("/auth/check");
       if (res.data && typeof res.data === "object" && res.data._id) {
+        localStorage.setItem("chat-user", JSON.stringify(res.data));
         set({ authUser: res.data });
         get().connectSocket();
       } else {
         localStorage.removeItem("chat-token");
+        localStorage.removeItem("chat-user");
         set({ authUser: null });
       }
     } catch {
       localStorage.removeItem("chat-token");
+      localStorage.removeItem("chat-user");
       set({ authUser: null });
     } finally {
       set({ isCheckingAuth: false });
@@ -54,6 +68,7 @@ export const useAuthStore = create((set, get) => ({
     try {
       const res = await axiosInstance.post("/auth/verify-otp", { email, code });
       if (res.data.token) localStorage.setItem("chat-token", res.data.token);
+      localStorage.setItem("chat-user", JSON.stringify(res.data));
       set({ authUser: res.data });
       toast.success("Email verified! Welcome to Chatty.");
       get().connectSocket();
@@ -78,6 +93,7 @@ export const useAuthStore = create((set, get) => ({
     try {
       const res = await axiosInstance.post("/auth/login", data);
       if (res.data.token) localStorage.setItem("chat-token", res.data.token);
+      localStorage.setItem("chat-user", JSON.stringify(res.data));
       set({ authUser: res.data });
       toast.success("Welcome back!");
       get().connectSocket();
@@ -97,11 +113,13 @@ export const useAuthStore = create((set, get) => ({
     try {
       await axiosInstance.post("/auth/logout");
       localStorage.removeItem("chat-token");
+      localStorage.removeItem("chat-user");
       set({ authUser: null });
       toast.success("Logged out");
       get().disconnectSocket();
     } catch (err) {
       localStorage.removeItem("chat-token");
+      localStorage.removeItem("chat-user");
       set({ authUser: null });
       toast.error(err?.response?.data?.message || "Logout failed");
     }
@@ -133,6 +151,7 @@ export const useAuthStore = create((set, get) => ({
     set({ isUpdatingProfile: true });
     try {
       const res = await axiosInstance.put("/auth/update-profile", data);
+      localStorage.setItem("chat-user", JSON.stringify(res.data));
       set({ authUser: res.data });
       toast.success("Profile updated");
     } catch (err) {
@@ -156,11 +175,13 @@ export const useAuthStore = create((set, get) => ({
     try {
       await axiosInstance.delete("/auth/delete-account");
       localStorage.removeItem("chat-token");
+      localStorage.removeItem("chat-user");
       set({ authUser: null });
       toast.success("Account deleted");
       get().disconnectSocket();
     } catch (err) {
       localStorage.removeItem("chat-token");
+      localStorage.removeItem("chat-user");
       set({ authUser: null });
       toast.error(err?.response?.data?.message || "Delete failed");
     }
