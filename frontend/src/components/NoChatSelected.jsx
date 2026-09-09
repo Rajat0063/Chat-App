@@ -119,12 +119,12 @@ export default function NoChatSelected() {
   );
 
   return (
-    <div className="w-full flex flex-1 flex-col p-4 sm:p-6 lg:p-8 bg-gradient-to-b from-base-100/60 via-base-100 to-base-200/40 overflow-y-auto">
-      <div className="max-w-4xl mx-auto w-full space-y-6">
+    <div className="w-full min-w-0 flex flex-1 flex-col p-2.5 sm:p-6 lg:p-8 bg-gradient-to-b from-base-100/60 via-base-100 to-base-200/40 overflow-y-auto">
+      <div className="max-w-4xl mx-auto w-full space-y-4 sm:space-y-6">
         
         {/* Top Header Card */}
-        <div className="bg-base-100/80 backdrop-blur-md p-5 sm:p-6 rounded-2xl border border-base-300/80 shadow-md flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
+        <div className="bg-base-100/80 backdrop-blur-md p-4 sm:p-6 rounded-2xl border border-base-300/80 shadow-md flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3 sm:gap-4 min-w-0 w-full">
             <div className="relative">
               <div className="size-14 sm:size-16 rounded-2xl bg-gradient-to-tr from-primary to-indigo-600 p-0.5 shadow-lg shadow-primary/20">
                 <div className="w-full h-full bg-base-100 rounded-[14px] flex items-center justify-center">
@@ -138,20 +138,22 @@ export default function NoChatSelected() {
             </div>
 
             <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight">
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight leading-tight">
                   Welcome, {authUser?.fullName || "User"}
                 </h1>
-                <span className="badge badge-primary badge-outline text-[10px] font-bold">Pro Workspace</span>
+                <span className="inline-flex items-center rounded-full border border-primary/30 bg-primary/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-primary whitespace-nowrap">
+                  Pro Workspace
+                </span>
               </div>
-              <p className="text-xs sm:text-sm text-base-content/60 mt-1">
+              <p className="text-xs sm:text-sm text-base-content/60 mt-1 leading-relaxed max-w-xl">
                 Real-time Chat, Group Channels & Application Feedback Hub
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
-            <div className="flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 px-3 py-1.5 rounded-xl text-xs font-semibold">
+            <div className="flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap">
               <Radio className="size-3.5 animate-pulse" />
               <span>Realtime Engine Active</span>
             </div>

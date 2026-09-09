@@ -12,8 +12,16 @@ const messageSchema = new mongoose.Schema(
     status: { type: String, enum: ["sent", "delivered", "read"], default: "sent" },
     readAt: { type: Date, default: null },
     deliveredAt: { type: Date, default: null },
+    seen: { type: Boolean, default: false },
+    seenAt: { type: Date, default: null },
+    seenBy: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
     readBy: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
     deletedFor: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+    isPinned: { type: Boolean, default: false },
+    pinnedAt: { type: Date, default: null },
+    pinnedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+    pinDuration: { type: String, default: null },
+    pinExpiresAt: { type: Date, default: null },
   },
   { timestamps: true }
 );

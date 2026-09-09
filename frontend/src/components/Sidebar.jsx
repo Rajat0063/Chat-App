@@ -31,8 +31,15 @@ export default function Sidebar() {
   const safeUsers = Array.isArray(users) ? users : [];
   const safeOnlineUsers = Array.isArray(onlineUsers) ? onlineUsers : [];
   const counts = unreadCounts || {};
-  const directUnreadTotal = safeUsers.reduce((total, user) => total + (counts[user._id] || 0), 0);
-  const groupUnreadTotal = safeGroups.reduce((total, group) => total + (counts[group._id] || 0), 0);
+  const getUnread = (item) => {
+    if (!item) return 0;
+    const id = (item._id?._id || item._id)?.toString();
+    const raw = counts[id] ?? counts[item._id] ?? 0;
+    return Math.max(0, Number(raw) || 0);
+  };
+
+  const directUnreadTotal = safeUsers.reduce((sum, user) => sum + getUnread(user), 0);
+  const groupUnreadTotal = safeGroups.reduce((sum, group) => sum + getUnread(group), 0);
   const totalUnread = directUnreadTotal + groupUnreadTotal;
 
   const trimmedSearch = searchQuery.trim().toLowerCase();
@@ -59,12 +66,12 @@ export default function Sidebar() {
       {/* Top Header */}
       <div className="p-3 sm:p-4 border-b border-base-300/80 space-y-3">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-xl bg-primary/10 text-primary hidden md:flex items-center justify-center">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="relative p-2 rounded-xl bg-primary/10 text-primary hidden md:flex items-center justify-center shrink-0">
               <MessageSquare className="size-5" />
               {totalUnread > 0 && <span className="absolute size-2.5 rounded-full bg-primary ring-2 ring-base-100" />}
             </div>
-            <div>
+            <div className="min-w-0">
               <div className="flex items-center gap-1.5">
                 <h2 className="font-bold text-base hidden md:block tracking-tight">Messages</h2>
                 {totalUnread > 0 && <span className="badge badge-primary badge-xs font-bold rounded-full">{totalUnread > 99 ? "99+" : totalUnread}</span>}
@@ -77,7 +84,7 @@ export default function Sidebar() {
           <button
             type="button"
             onClick={() => setIsMobileSearchOpen((open) => !open)}
-            className={`btn btn-ghost btn-sm btn-circle md:hidden ${isMobileSearchOpen || searchQuery ? "text-primary bg-primary/10" : "text-base-content/70"}`}
+            className={`btn btn-ghost btn-sm btn-square md:hidden shrink-0 ${isMobileSearchOpen || searchQuery ? "text-primary bg-primary/10" : "text-base-content/70"}`}
             title="Filter conversations"
             aria-label="Filter conversations"
           >
@@ -85,7 +92,7 @@ export default function Sidebar() {
           </button>
           <button
             onClick={() => setIsCreateGroupOpen(true)}
-            className="btn btn-primary btn-sm rounded-xl gap-1 shadow-sm hover:scale-[1.02] transition-transform w-full sm:w-auto"
+            className="btn btn-primary btn-sm btn-square md:w-auto rounded-xl gap-1 shadow-sm hover:scale-[1.02] transition-transform shrink-0 md:px-3"
             title="Create new group room"
           >
             <Plus className="size-4" />
@@ -194,7 +201,8 @@ export default function Sidebar() {
               const isSelected = toIdStr(selectedGroup?._id) === gId;
               const gTypers = (gId && typingUsers[gId]) || {};
               const gTypingCount = Object.keys(gTypers).length;
-              const unreadCount = counts[gId] || 0;
+              const unreadCount = getUnread(g);
+              const hasUnread = unreadCount > 0;
               return (
                 <button
                   key={g._id}
@@ -209,7 +217,7 @@ export default function Sidebar() {
                 >
                   <div className="relative size-11 sm:size-12 rounded-xl overflow-hidden bg-base-200 flex-shrink-0 border border-base-300">
                     <img src={g.avatar || "/avatar.png"} alt={g.name} className="w-full h-full object-cover" />
-                    {unreadCount > 0 && <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full bg-primary text-primary-content text-[10px] font-bold flex items-center justify-center md:hidden">{unreadCount > 99 ? "99+" : unreadCount}</span>}
+                    {hasUnread && <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full bg-primary text-primary-content text-[10px] font-bold flex items-center justify-center md:hidden">{unreadCount > 99 ? "99+" : unreadCount}</span>}
                   </div>
                   <div className="hidden md:flex flex-col min-w-0 flex-1">
                     <div className="flex items-center justify-between gap-1">
@@ -242,7 +250,8 @@ export default function Sidebar() {
               const uId = toIdStr(u._id);
               const isSelected = toIdStr(selectedUser?._id) === uId;
               const isOnline = safeOnlineUsers.map(toIdStr).includes(uId);
-              const unreadCount = counts[uId] || 0;
+              const unreadCount = getUnread(u);
+              const hasUnread = unreadCount > 0;
               const uTypers = (uId && typingUsers[uId]) || {};
               const isUserTyping = Boolean(uTypers[uId]) || Object.keys(uTypers).some((id) => id !== toIdStr(authUser?._id));
               return (
@@ -262,7 +271,7 @@ export default function Sidebar() {
                     {isOnline && (
                       <span className="absolute bottom-0 right-0 size-3 bg-emerald-500 rounded-full ring-2 ring-base-100" />
                     )}
-                    {unreadCount > 0 && <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full bg-primary text-primary-content text-[10px] font-bold flex items-center justify-center md:hidden">{unreadCount > 99 ? "99+" : unreadCount}</span>}
+                    {hasUnread && <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full bg-primary text-primary-content text-[10px] font-bold flex items-center justify-center md:hidden">{unreadCount > 99 ? "99+" : unreadCount}</span>}
                   </div>
                   <div className="hidden md:flex flex-col min-w-0 flex-1">
                     <div className="flex items-center justify-between gap-1">
@@ -270,7 +279,15 @@ export default function Sidebar() {
                       {isOnline && (
                         <span className="text-[10px] text-emerald-500 font-medium">Online</span>
                       )}
-                      {unreadCount > 0 && <span className="badge badge-primary badge-sm rounded-full">{unreadCount > 99 ? "99+" : unreadCount}</span>}
+                      {hasUnread ? (
+                        <span
+                          id={`sidebar-unread-badge-user-${u._id}`}
+                          className="inline-flex items-center justify-center px-2 py-0.5 min-w-[22px] h-5 rounded-full text-[11px] font-extrabold bg-primary text-primary-content shadow-sm animate-in zoom-in-75 duration-150"
+                          title={`${unreadCount} unread message${unreadCount > 1 ? "s" : ""}`}
+                        >
+                          {unreadCount > 99 ? "99+" : unreadCount}
+                        </span>
+                      ) : null}
                     </div>
                     {isUserTyping ? (
                       <p className="text-xs text-primary font-medium truncate flex items-center gap-1">

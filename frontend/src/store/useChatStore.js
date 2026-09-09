@@ -212,17 +212,20 @@ export const useChatStore = create((set, get) => ({
     try {
       const res = await axiosInstance.get("/messages/users");
       const nextUsers = Array.isArray(res.data?.users) ? res.data.users : (Array.isArray(res.data) ? res.data : []);
-      const nextBlockedUsers = (Array.isArray(res.data?.blockedUsers) ? res.data.blockedUsers : []).map((id) => id.toString());
+      const nextBlockedUsers = (Array.isArray(res.data?.blockedUsers) ? res.data.blockedUsers : []).map((id) => (id?._id || id)?.toString());
       const currentSelectedUser = get().selectedUser;
       const serverUnread = res.data?.unreadCounts || {};
+      const validSelectedUser = currentSelectedUser && nextUsers.some((user) =>
+        toIdStr(user._id) === toIdStr(currentSelectedUser._id)
+      ) ? currentSelectedUser : null;
+      const mergedUnread = { ...get().unreadCounts, ...serverUnread };
+      if (validSelectedUser) mergedUnread[toIdStr(validSelectedUser._id)] = 0;
 
       set({
         users: nextUsers,
         blockedUsers: nextBlockedUsers,
-        unreadCounts: { ...get().unreadCounts, ...serverUnread },
-        selectedUser: currentSelectedUser && nextUsers.some((u) => u._id === currentSelectedUser._id)
-          ? currentSelectedUser
-          : nextUsers.length ? nextUsers[0] : null,
+        unreadCounts: mergedUnread,
+        selectedUser: validSelectedUser,
       });
     } catch (err) {
       toast.error(err?.response?.data?.message || "Failed to load users");
@@ -234,9 +237,16 @@ export const useChatStore = create((set, get) => ({
     try {
       const res = await axiosInstance.get("/groups");
       const groupsData = Array.isArray(res.data) ? res.data : (Array.isArray(res.data?.groups) ? res.data.groups : []);
+      const currentSelectedGroup = get().selectedGroup;
+      const validSelectedGroup = currentSelectedGroup && groupsData.some((group) =>
+        toIdStr(group._id) === toIdStr(currentSelectedGroup._id)
+      ) ? currentSelectedGroup : null;
+      const mergedUnread = { ...get().unreadCounts, ...(res.data?.unreadCounts || {}) };
+      if (validSelectedGroup) mergedUnread[toIdStr(validSelectedGroup._id)] = 0;
       set((state) => ({
         groups: groupsData,
-        unreadCounts: { ...state.unreadCounts, ...(res.data?.unreadCounts || {}) },
+        unreadCounts: mergedUnread,
+        selectedGroup: validSelectedGroup,
       }));
     } catch (err) {
       toast.error(err?.response?.data?.message || "Failed to load groups");

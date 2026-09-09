@@ -12,8 +12,12 @@ export default function HomePage() {
       <div className="mx-auto h-full max-w-7xl">
         <div className="bg-base-100/90 backdrop-blur-xl border border-base-300/80 rounded-2xl sm:rounded-3xl shadow-2xl h-full overflow-hidden flex flex-col">
           <div className="flex h-full min-h-0 divide-x divide-base-300/60 overflow-hidden">
-            <Sidebar />
-            {!selectedUser && !selectedGroup ? <NoChatSelected /> : <ChatContainer />}
+            <div className={`${selectedUser || selectedGroup ? "hidden md:flex" : "flex"} h-full min-h-0`}>
+              <Sidebar />
+            </div>
+            <div className="flex min-w-0 flex-1 h-full min-h-0">
+              {!selectedUser && !selectedGroup ? <NoChatSelected /> : <ChatContainer />}
+            </div>
           </div>
         </div>
       </div>

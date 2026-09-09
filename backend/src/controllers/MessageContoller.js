@@ -5,11 +5,24 @@ import { io, getReceiverSocketId, getReceiverSocketIds, isUserInConversation } f
 export const getUsersForSidebar = async (req, res) => {
   try {
     const me = req.user._id;
-    const [users, meUser] = await Promise.all([
+    const meStr = (me?._id || me)?.toString();
+    const [users, meUser, unreadMessages] = await Promise.all([
       User.find({ _id: { $ne: me }, isVerified: true }).select("-password"),
       User.findById(me).select("blockedUsers"),
+      Message.find({
+        receiverId: { $in: [me, meStr] },
+        seen: { $ne: true },
+        deletedFor: { $nin: [me, meStr] },
+      }),
     ]);
-    res.json({ users, blockedUsers: meUser?.blockedUsers || [] });
+
+    const unreadCounts = {};
+    (unreadMessages || []).forEach((message) => {
+      const senderId = (message.senderId?._id || message.senderId)?.toString();
+      if (senderId) unreadCounts[senderId] = (unreadCounts[senderId] || 0) + 1;
+    });
+
+    res.json({ users, blockedUsers: meUser?.blockedUsers || [], unreadCounts });
   } catch (err) {
     console.log("getUsersForSidebar:", err.message);
     res.status(500).json({ message: "Internal server error" });
