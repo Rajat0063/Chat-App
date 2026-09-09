@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from "react";
-import { MessageSquare, Sparkles } from "lucide-react";
+import { MessageSquare, Sparkles, Check, CheckCheck, Clock } from "lucide-react";
 import ChatHeader from "./ChatHeader.jsx";
 import MessageInput from "./MessageInput.jsx";
 import MessageSkeleton from "./skeletons/MessageSkeleton.jsx";
@@ -8,8 +8,19 @@ import { useAuthStore } from "../store/useAuthStore.js";
 import { formatMessageTime } from "../lib/utils.js";
 
 export default function ChatContainer() {
-  const { messages, getMessages, getGroupMessages, isMessagesLoading, selectedUser, selectedGroup,
-    subscribeToMessages, unsubscribeFromMessages, subscribeToGroupMessages } = useChatStore();
+  const {
+    messages,
+    getMessages,
+    getGroupMessages,
+    isMessagesLoading,
+    selectedUser,
+    selectedGroup,
+    subscribeToMessages,
+    unsubscribeFromMessages,
+    subscribeToGroupMessages,
+    markMessagesAsRead,
+    markGroupMessagesAsRead,
+  } = useChatStore();
   const { authUser } = useAuthStore();
   const endRef = useRef(null);
 
@@ -29,6 +40,29 @@ export default function ChatContainer() {
     if (endRef.current && messages) endRef.current.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  // Real-time mark-as-read when new messages arrive while viewing this conversation
+  useEffect(() => {
+    if (!messages?.length) return;
+    if (selectedUser) {
+      const hasUnread = messages.some((m) => {
+        const sender = (m.senderId?._id || m.senderId)?.toString();
+        return sender === selectedUser._id.toString() && m.status !== "read";
+      });
+      if (hasUnread) {
+        markMessagesAsRead(selectedUser._id);
+      }
+    } else if (selectedGroup && authUser) {
+      const hasUnreadGroup = messages.some((m) => {
+        const sender = (m.senderId?._id || m.senderId)?.toString();
+        const readBy = (m.readBy || []).map((id) => (id?._id || id)?.toString());
+        return sender !== authUser._id.toString() && !readBy.includes(authUser._id.toString());
+      });
+      if (hasUnreadGroup) {
+        markGroupMessagesAsRead(selectedGroup._id);
+      }
+    }
+  }, [messages, selectedUser, selectedGroup, authUser, markMessagesAsRead, markGroupMessagesAsRead]);
+
   if (isMessagesLoading) {
     return (
       <div className="flex-1 flex min-h-0 flex-col overflow-hidden bg-base-100/30">
@@ -42,6 +76,93 @@ export default function ChatContainer() {
   }
 
   const messageList = Array.isArray(messages) ? messages : [];
+
+  const renderStatusIndicator = (m) => {
+    if (m.isSending) {
+      return (
+        <span className="inline-flex items-center gap-1 text-[10px] text-base-content/50" title="Sending message...">
+          <Clock className="size-3 animate-spin text-base-content/50" />
+          <span>Sending</span>
+        </span>
+      );
+    }
+
+    // Direct chat
+    if (!selectedGroup) {
+      if (m.status === "read") {
+        return (
+          <span
+            className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-sky-500 hover:text-sky-600 transition-colors"
+            title={m.readAt ? `Read • ${formatMessageTime(m.readAt)}` : "Read by recipient"}
+          >
+            <CheckCheck className="size-3.5 stroke-[2.5]" />
+            <span>Read</span>
+          </span>
+        );
+      }
+      if (m.status === "delivered") {
+        return (
+          <span
+            className="inline-flex items-center gap-0.5 text-[10px] text-base-content/60"
+            title={m.deliveredAt ? `Delivered • ${formatMessageTime(m.deliveredAt)}` : "Delivered to device"}
+          >
+            <CheckCheck className="size-3.5 stroke-[1.8]" />
+            <span>Delivered</span>
+          </span>
+        );
+      }
+      return (
+        <span
+          className="inline-flex items-center gap-0.5 text-[10px] text-base-content/50"
+          title="Sent to server"
+        >
+          <Check className="size-3.5 stroke-[1.8]" />
+          <span>Sent</span>
+        </span>
+      );
+    }
+
+    // Group chat
+    const readByList = Array.isArray(m.readBy) ? m.readBy : [];
+    const otherReadCount = readByList.filter((id) => {
+      const idStr = (id?._id || id)?.toString();
+      return idStr && authUser && idStr !== authUser._id.toString();
+    }).length;
+
+    if (otherReadCount > 0) {
+      return (
+        <span
+          className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-sky-500"
+          title={`Read by ${otherReadCount} group member${otherReadCount > 1 ? "s" : ""}`}
+        >
+          <CheckCheck className="size-3.5 stroke-[2.5]" />
+          <span>Read ({otherReadCount})</span>
+        </span>
+      );
+    }
+
+    if (m.status === "delivered") {
+      return (
+        <span
+          className="inline-flex items-center gap-0.5 text-[10px] text-base-content/60"
+          title="Delivered to group members"
+        >
+          <CheckCheck className="size-3.5 stroke-[1.8]" />
+          <span>Delivered</span>
+        </span>
+      );
+    }
+
+    return (
+      <span
+        className="inline-flex items-center gap-0.5 text-[10px] text-base-content/50"
+        title="Sent to group"
+      >
+        <Check className="size-3.5 stroke-[1.8]" />
+        <span>Sent</span>
+      </span>
+    );
+  };
 
   return (
     <div className="flex-1 flex min-h-0 flex-col overflow-hidden bg-base-100/30">
@@ -87,7 +208,7 @@ export default function ChatContainer() {
                   {selectedGroup && !mine && (
                     <span className="font-bold text-base-content/80">{senderName}</span>
                   )}
-                  <time>{formatMessageTime(m.createdAt)}</time>
+                  {!mine && <time>{formatMessageTime(m.createdAt)}</time>}
                 </div>
 
                 <div
@@ -107,6 +228,12 @@ export default function ChatContainer() {
                     </div>
                   )}
                   {m.text && <p className="text-sm leading-relaxed break-words">{m.text}</p>}
+                </div>
+
+                {/* Chat Footer with Timestamp & Delivery/Read Checkmark Indicators */}
+                <div className="chat-footer text-[11px] text-base-content/60 flex items-center gap-1.5 mt-1 px-1 font-medium select-none">
+                  {mine && <time>{formatMessageTime(m.createdAt)}</time>}
+                  {mine && renderStatusIndicator(m)}
                 </div>
               </div>
             );

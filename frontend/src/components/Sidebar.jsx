@@ -27,33 +27,34 @@ export default function Sidebar() {
   const safeUsers = Array.isArray(users) ? users : [];
   const safeOnlineUsers = Array.isArray(onlineUsers) ? onlineUsers : [];
 
-  // Filter logic
+  // Filter logic strictly by name as requested
+  const trimmedSearch = searchQuery.trim().toLowerCase();
+
   const filteredUsers = safeUsers.filter((u) => {
     const matchesOnline = showOnlineOnly ? safeOnlineUsers.includes(u._id) : true;
-    const matchesSearch = u.fullName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          u.email?.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesSearch = !trimmedSearch || (u.fullName && u.fullName.toLowerCase().includes(trimmedSearch));
     return matchesOnline && matchesSearch;
   });
 
   const filteredGroups = safeGroups.filter((g) => {
-    return g.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-           g.description?.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesSearch = !trimmedSearch || (g.name && g.name.toLowerCase().includes(trimmedSearch));
+    return matchesSearch;
   });
 
   if (isUsersLoading) return <SidebarSkeleton />;
 
   return (
-    <aside className="h-full flex-none w-20 sm:w-28 md:w-72 lg:w-80 bg-base-100/50 flex flex-col transition-all duration-200 overflow-x-hidden min-w-0">
+    <aside className="h-full flex-none w-20 sm:w-28 md:w-72 lg:w-80 bg-base-100/50 flex flex-col transition-all duration-200 overflow-x-hidden min-w-0 border-r border-base-300/70">
       {/* Top Header */}
       <div className="p-3 sm:p-4 border-b border-base-300/80 space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-xl bg-primary/10 text-primary hidden lg:flex items-center justify-center">
+            <div className="p-2 rounded-xl bg-primary/10 text-primary hidden md:flex items-center justify-center">
               <MessageSquare className="size-5" />
             </div>
             <div>
-              <h2 className="font-bold text-base hidden lg:block tracking-tight">Messages</h2>
-              <p className="text-[11px] text-base-content/60 hidden lg:block">
+              <h2 className="font-bold text-base hidden md:block tracking-tight">Messages</h2>
+              <p className="text-[11px] text-base-content/60 hidden md:block">
                 {safeOnlineUsers.length > 0 ? `${Math.max(0, safeOnlineUsers.length - 1)} online now` : "Workspace Chat"}
               </p>
             </div>
@@ -68,28 +69,53 @@ export default function Sidebar() {
           </button>
         </div>
 
-        {/* Search Input */}
-        <div className="relative hidden lg:block">
-          <Search className="absolute left-3 top-2.5 size-4 text-base-content/40" />
-          <input
-            type="text"
-            placeholder="Search conversations..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="input input-sm input-bordered w-full pl-9 rounded-xl text-xs bg-base-200/50 focus:bg-base-100 transition-colors"
-          />
+        {/* Search Bar - Filter direct messages and group chats by name */}
+        <div className="space-y-1.5">
+          <div className="relative">
+            <Search className="absolute left-3 top-2.5 size-4 text-base-content/40 pointer-events-none" />
+            <input
+              type="text"
+              placeholder="Filter chats by name..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") setSearchQuery("");
+              }}
+              className="input input-sm input-bordered w-full pl-9 pr-8 rounded-xl text-xs bg-base-200/50 focus:bg-base-100 transition-colors"
+              aria-label="Filter direct messages and group chats by name"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery("")}
+                className="absolute right-2.5 top-2 text-base-content/40 hover:text-base-content transition-colors"
+                title="Clear search"
+                aria-label="Clear search"
+              >
+                <X className="size-3.5" />
+              </button>
+            )}
+          </div>
+
           {searchQuery && (
-            <button
-              onClick={() => setSearchQuery("")}
-              className="absolute right-2.5 top-2 text-xs text-base-content/50 hover:text-base-content"
-            >
-              ×
-            </button>
+            <div className="hidden md:flex items-center justify-between text-[11px] text-base-content/60 px-1">
+              <span>
+                Found: <strong className="text-primary">{filteredUsers.length}</strong> direct,{" "}
+                <strong className="text-primary">{filteredGroups.length}</strong> groups
+              </span>
+              <button
+                type="button"
+                onClick={() => setSearchQuery("")}
+                className="text-[10px] text-primary hover:underline"
+              >
+                Clear
+              </button>
+            </div>
           )}
         </div>
 
         {/* Tabs & Online Filter */}
-        <div className="hidden lg:flex flex-col gap-2 pt-1">
+        <div className="hidden md:flex flex-col gap-2 pt-1">
           <div className="grid grid-cols-3 gap-1 p-1 bg-base-200/70 rounded-xl text-xs font-medium">
             <button
               onClick={() => setActiveTab("all")}
@@ -136,7 +162,7 @@ export default function Sidebar() {
         {/* Groups Section */}
         {(activeTab === "all" || activeTab === "groups") && filteredGroups.length > 0 && (
           <div className="space-y-1 mb-3">
-            <div className="px-3 py-1 text-[11px] font-bold text-base-content/40 uppercase tracking-wider hidden lg:block">
+            <div className="px-3 py-1 text-[11px] font-bold text-base-content/40 uppercase tracking-wider hidden md:block">
               Group Rooms ({filteredGroups.length})
             </div>
             {filteredGroups.map((g) => {
@@ -154,7 +180,7 @@ export default function Sidebar() {
                   <div className="relative size-11 sm:size-12 rounded-xl overflow-hidden bg-base-200 flex-shrink-0 border border-base-300">
                     <img src={g.avatar || "/avatar.png"} alt={g.name} className="w-full h-full object-cover" />
                   </div>
-                  <div className="hidden lg:flex flex-col min-w-0 flex-1">
+                  <div className="hidden md:flex flex-col min-w-0 flex-1">
                     <div className="flex items-center justify-between gap-1">
                       <span className="font-semibold text-sm truncate">{g.name}</span>
                       <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-base-300 text-base-content/70">
@@ -172,9 +198,9 @@ export default function Sidebar() {
         )}
 
         {/* Direct Messages Section */}
-        {(activeTab === "all" || activeTab === "direct") && (
+        {(activeTab === "all" || activeTab === "direct") && filteredUsers.length > 0 && (
           <div className="space-y-1">
-            <div className="px-3 py-1 text-[11px] font-bold text-base-content/40 uppercase tracking-wider hidden lg:block">
+            <div className="px-3 py-1 text-[11px] font-bold text-base-content/40 uppercase tracking-wider hidden md:block">
               Direct Messages ({filteredUsers.length})
             </div>
             {filteredUsers.map((u) => {
@@ -196,7 +222,7 @@ export default function Sidebar() {
                       <span className="absolute bottom-0 right-0 size-3 bg-emerald-500 rounded-full ring-2 ring-base-100" />
                     )}
                   </div>
-                  <div className="hidden lg:flex flex-col min-w-0 flex-1">
+                  <div className="hidden md:flex flex-col min-w-0 flex-1">
                     <div className="flex items-center justify-between gap-1">
                       <span className="font-semibold text-sm truncate">{u.fullName}</span>
                       {isOnline && (
@@ -215,9 +241,20 @@ export default function Sidebar() {
 
         {/* Empty Search Result State */}
         {!filteredUsers.length && !filteredGroups.length && (
-          <div className="text-center py-8 px-4 text-base-content/50">
-            <UserCheck className="size-8 mx-auto mb-2 opacity-40" />
-            <p className="text-xs">No conversations found</p>
+          <div className="text-center py-8 px-4 text-base-content/60 space-y-2">
+            <UserCheck className="size-8 mx-auto opacity-40" />
+            <p className="text-xs font-medium">
+              {searchQuery ? `No chats found matching "${searchQuery}"` : "No conversations found"}
+            </p>
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery("")}
+                className="btn btn-xs btn-ghost text-primary"
+              >
+                Clear filter
+              </button>
+            )}
           </div>
         )}
       </div>

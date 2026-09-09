@@ -205,16 +205,82 @@ export const useChatStore = create((set, get) => ({
     }
   },
 
+  markMessagesAsRead: async (userId) => {
+    if (!userId) return;
+    const socket = useAuthStore.getState().socket;
+    const authUser = useAuthStore.getState().authUser;
+    if (socket && authUser) {
+      socket.emit("markAsRead", { senderId: userId, receiverId: authUser._id });
+    }
+    try {
+      await axiosInstance.post(`/messages/read/${userId}`);
+    } catch {}
+  },
+
+  markGroupMessagesAsRead: async (groupId) => {
+    if (!groupId) return;
+    const socket = useAuthStore.getState().socket;
+    const authUser = useAuthStore.getState().authUser;
+    if (socket && authUser) {
+      socket.emit("markGroupAsRead", { groupId, readerId: authUser._id });
+    }
+    try {
+      await axiosInstance.post(`/groups/${groupId}/read`);
+    } catch {}
+  },
+
   subscribeToMessages: () => {
     const { selectedUser } = get();
     if (!selectedUser) return;
     const socket = useAuthStore.getState().socket;
     if (!socket) return;
+
     socket.off("newMessage");
     socket.on("newMessage", (newMessage) => {
       const isFromSelected = newMessage.senderId === selectedUser._id || newMessage.senderId?._id === selectedUser._id;
       if (!isFromSelected) return;
       set({ messages: appendUniqueMessage(get().messages, newMessage) });
+
+      // Automatically mark as read since recipient is currently actively looking at this conversation
+      const authUser = useAuthStore.getState().authUser;
+      if (authUser) {
+        socket.emit("markAsRead", { senderId: selectedUser._id, receiverId: authUser._id });
+        try { axiosInstance.post(`/messages/read/${selectedUser._id}`); } catch {}
+      }
+    });
+
+    socket.off("messagesRead");
+    socket.on("messagesRead", ({ readerId, readAt }) => {
+      const currentSelected = get().selectedUser;
+      const authUser = useAuthStore.getState().authUser;
+      if (!currentSelected || currentSelected._id !== readerId) return;
+
+      set({
+        messages: get().messages.map((m) => {
+          const isMine = m.senderId === authUser?._id || m.senderId?._id === authUser?._id;
+          if (isMine) {
+            return { ...m, status: "read", readAt: readAt || new Date().toISOString() };
+          }
+          return m;
+        }),
+      });
+    });
+
+    socket.off("messagesDelivered");
+    socket.on("messagesDelivered", ({ receiverId, deliveredAt }) => {
+      const currentSelected = get().selectedUser;
+      const authUser = useAuthStore.getState().authUser;
+      if (!currentSelected || currentSelected._id !== receiverId) return;
+
+      set({
+        messages: get().messages.map((m) => {
+          const isMine = m.senderId === authUser?._id || m.senderId?._id === authUser?._id;
+          if (isMine && m.status === "sent") {
+            return { ...m, status: "delivered", deliveredAt: deliveredAt || new Date().toISOString() };
+          }
+          return m;
+        }),
+      });
     });
   },
 
@@ -223,10 +289,32 @@ export const useChatStore = create((set, get) => ({
     if (!selectedGroup) return;
     const socket = useAuthStore.getState().socket;
     if (!socket) return;
+
     socket.off("newGroupMessage");
     socket.on("newGroupMessage", (newMessage) => {
       if (newMessage.groupId !== selectedGroup._id) return;
       set({ messages: appendUniqueMessage(get().messages, newMessage) });
+
+      const authUser = useAuthStore.getState().authUser;
+      if (authUser) {
+        socket.emit("markGroupAsRead", { groupId: selectedGroup._id, readerId: authUser._id });
+        try { axiosInstance.post(`/groups/${selectedGroup._id}/read`); } catch {}
+      }
+    });
+
+    socket.off("groupMessagesRead");
+    socket.on("groupMessagesRead", ({ groupId, readerId }) => {
+      const currentGroup = get().selectedGroup;
+      if (!currentGroup || currentGroup._id !== groupId) return;
+      set({
+        messages: get().messages.map((m) => {
+          const readBy = Array.isArray(m.readBy) ? m.readBy : [];
+          if (!readBy.some((id) => (id?._id || id)?.toString() === readerId)) {
+            return { ...m, readBy: [...readBy, readerId], status: "read" };
+          }
+          return m;
+        }),
+      });
     });
   },
 
@@ -235,11 +323,20 @@ export const useChatStore = create((set, get) => ({
     if (socket) {
       socket.off("newMessage");
       socket.off("newGroupMessage");
+      socket.off("messagesRead");
+      socket.off("messagesDelivered");
+      socket.off("groupMessagesRead");
     }
   },
 
-  setSelectedUser: (user) => set({ selectedUser: user, selectedGroup: null }),
-  setSelectedGroup: (group) => set({ selectedGroup: group, selectedUser: null }),
+  setSelectedUser: (user) => {
+    set({ selectedUser: user, selectedGroup: null });
+    if (user) get().markMessagesAsRead(user._id);
+  },
+  setSelectedGroup: (group) => {
+    set({ selectedGroup: group, selectedUser: null });
+    if (group) get().markGroupMessagesAsRead(group._id);
+  },
   leaveGroup: async (groupId) => {
     try {
       await axiosInstance.post(`/groups/${groupId}/leave`);

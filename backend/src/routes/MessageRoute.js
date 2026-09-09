@@ -6,6 +6,7 @@ import {
   sendMessage,
   toggleBlockUser,
   deleteConversation,
+  markMessagesAsRead,
 } from "../controllers/MessageContoller.js";
 
 const router = express.Router();
@@ -13,6 +14,7 @@ const router = express.Router();
 router.get("/users", protectRoute, getUsersForSidebar);
 router.get("/:id", protectRoute, getMessages);
 router.post("/send/:id", protectRoute, sendMessage);
+router.post("/read/:id", protectRoute, markMessagesAsRead);
 router.post("/block/:id", protectRoute, toggleBlockUser);
 router.delete("/conversation/:id", protectRoute, deleteConversation);
 
