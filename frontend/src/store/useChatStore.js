@@ -81,7 +81,32 @@ export const useChatStore = create((set, get) => ({
   blockedUsers: [],
   isUsersLoading: false,
   isMessagesLoading: false,
+  isChatSearchOpen: false,
+  chatSearchQuery: "",
+  chatSearchMatchIndex: 0,
   typingUsers: {}, // { [conversationId]: { [userId]: { userName, time } } }
+
+  setChatSearchOpen: (isOpen) => set({ isChatSearchOpen: isOpen }),
+  setChatSearchQuery: (query) => set({ chatSearchQuery: query, chatSearchMatchIndex: 0 }),
+  getChatSearchMatches: () => {
+    const { messages, chatSearchQuery } = get();
+    const normalizedQuery = chatSearchQuery.trim().toLowerCase();
+    if (!normalizedQuery) return [];
+    return (Array.isArray(messages) ? messages : []).filter((message) =>
+      message.text?.toLowerCase().includes(normalizedQuery)
+    );
+  },
+  nextChatSearchMatch: () => set((state) => {
+    const matchCount = get().getChatSearchMatches().length;
+    if (!matchCount) return { chatSearchMatchIndex: 0 };
+    return { chatSearchMatchIndex: (state.chatSearchMatchIndex + 1) % matchCount };
+  }),
+  previousChatSearchMatch: () => set((state) => {
+    const matchCount = get().getChatSearchMatches().length;
+    if (!matchCount) return { chatSearchMatchIndex: 0 };
+    return { chatSearchMatchIndex: (state.chatSearchMatchIndex - 1 + matchCount) % matchCount };
+  }),
+  closeChatSearch: () => set({ isChatSearchOpen: false, chatSearchQuery: "", chatSearchMatchIndex: 0 }),
 
   removeTypingUser: (convId, uId) => {
     set((state) => {

@@ -1,13 +1,13 @@
 import React from "react";
 import { useState, useRef, useEffect } from "react";
-import { MoreVertical, X, Loader2, Camera } from "lucide-react";
+import { MoreVertical, Search, X, Loader2, Camera } from "lucide-react";
 import { createPortal } from "react-dom";
 import { useAuthStore } from "../store/useAuthStore.js";
 import { useChatStore, toIdStr } from "../store/useChatStore.js";
 import { useThemeStore } from "../store/useThemeStore.js";
 
 export default function ChatHeader() {
-  const { selectedUser, selectedGroup, setSelectedUser, setSelectedGroup, blockedUsers, toggleBlockUser, deleteConversation, leaveGroup, addGroupMembers, updateGroup, deleteGroupConversation, deleteGroup, users, typingUsers } = useChatStore();
+  const { selectedUser, selectedGroup, setSelectedUser, setSelectedGroup, blockedUsers, toggleBlockUser, deleteConversation, leaveGroup, addGroupMembers, updateGroup, deleteGroupConversation, deleteGroup, users, typingUsers, isChatSearchOpen, setChatSearchOpen } = useChatStore();
   const { onlineUsers, authUser } = useAuthStore();
   const { theme } = useThemeStore();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -162,6 +162,17 @@ export default function ChatHeader() {
         style={{ top: menuPos.top, left: menuPos.left, width: 224 }}
         className="fixed z-50 rounded-2xl border bg-base-100 shadow-xl"
       >
+        <button
+          type="button"
+          onClick={() => {
+            setMenuOpen(false);
+            setChatSearchOpen(true);
+          }}
+          className="w-full text-left px-4 py-2.5 hover:bg-base-200 flex items-center gap-2.5 text-base-content/80 font-medium border-b border-base-200"
+        >
+          <Search className="size-3.5 text-primary" />
+          <span>Search in conversation</span>
+        </button>
         {selectedUser ? (
           <>
             <button type="button" onClick={() => { setProfileOpen(true); setMenuOpen(false); }} className="w-full text-left px-4 py-3 hover:bg-base-200">View profile</button>
@@ -291,6 +302,18 @@ export default function ChatHeader() {
         </div>
 
         <div className="flex items-center gap-1">
+          <button
+            id="chat-search-toggle-btn"
+            type="button"
+            onClick={() => setChatSearchOpen(!isChatSearchOpen)}
+            className={`btn btn-ghost btn-sm btn-circle transition-colors ${
+              isChatSearchOpen ? "text-primary bg-primary/15" : "text-base-content/70 hover:text-base-content"
+            }`}
+            title="Search in conversation"
+            aria-label="Search in conversation"
+          >
+            <Search className="size-4 sm:size-5" />
+          </button>
           <button
             ref={buttonRef}
             type="button"

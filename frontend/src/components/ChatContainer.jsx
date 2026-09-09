@@ -1,8 +1,10 @@
-import React, { useEffect, useRef } from "react";
-import { MessageSquare, Sparkles, Check, CheckCheck, Clock } from "lucide-react";
+import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import { MessageSquare, Sparkles, Check, CheckCheck, Clock, ChevronDown } from "lucide-react";
 import ChatHeader from "./ChatHeader.jsx";
 import MessageInput from "./MessageInput.jsx";
 import MessageSkeleton from "./skeletons/MessageSkeleton.jsx";
+import ChatSearchBanner from "./ChatSearchBanner.jsx";
+import HighlightedText from "./HighlightedText.jsx";
 import { useChatStore, toIdStr } from "../store/useChatStore.js";
 import { useAuthStore } from "../store/useAuthStore.js";
 import { formatMessageTime } from "../lib/utils.js";
@@ -20,11 +22,109 @@ export default function ChatContainer() {
     subscribeToGroupMessages,
     markMessagesAsRead,
     markGroupMessagesAsRead,
+    isChatSearchOpen,
+    chatSearchQuery,
+    setChatSearchOpen,
+    setChatSearchQuery,
   } = useChatStore();
   const { authUser } = useAuthStore();
   const endRef = useRef(null);
+  const containerRef = useRef(null);
   const activeUserId = toIdStr(selectedUser?._id);
   const activeGroupId = toIdStr(selectedGroup?._id);
+  const messageList = Array.isArray(messages) ? messages : [];
+  const [currentMatchIndex, setCurrentMatchIndex] = useState(0);
+  const matchingMessages = useMemo(() => {
+    const query = chatSearchQuery.trim().toLowerCase();
+    if (!query) return [];
+    return messageList.filter((message) => message.text?.toLowerCase().includes(query));
+  }, [messageList, chatSearchQuery]);
+  const currentMatch = matchingMessages[currentMatchIndex];
+
+  // Auto-scroll state: track if user manually scrolled up
+  const [isScrolledUp, setIsScrolledUp] = useState(false);
+  const [unreadBelowCount, setUnreadBelowCount] = useState(0);
+
+  const isScrolledUpRef = useRef(false);
+  const prevMessagesLengthRef = useRef(0);
+  const prevConversationIdRef = useRef("");
+
+  useEffect(() => {
+    setCurrentMatchIndex(matchingMessages.length ? matchingMessages.length - 1 : 0);
+  }, [chatSearchQuery, matchingMessages.length]);
+
+  useEffect(() => {
+    if (!isChatSearchOpen || !currentMatch?._id) return;
+    document.getElementById(`msg-${currentMatch._id}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [currentMatch, isChatSearchOpen]);
+
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "f") {
+        event.preventDefault();
+        setChatSearchOpen(true);
+      } else if (event.key === "Escape" && isChatSearchOpen) {
+        setChatSearchOpen(false);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isChatSearchOpen, setChatSearchOpen]);
+
+  const handleNextMatch = () => {
+    if (matchingMessages.length > 1) setCurrentMatchIndex((index) => (index + 1) % matchingMessages.length);
+  };
+
+  const handlePreviousMatch = () => {
+    if (matchingMessages.length > 1) setCurrentMatchIndex((index) => (index - 1 + matchingMessages.length) % matchingMessages.length);
+  };
+
+  const handleCloseSearch = () => {
+    setChatSearchOpen(false);
+    setChatSearchQuery("");
+  };
+
+  const scrollToBottom = useCallback((behavior = "smooth") => {
+    if (endRef.current) {
+      endRef.current.scrollIntoView({ behavior });
+    } else if (containerRef.current) {
+      containerRef.current.scrollTo({
+        top: containerRef.current.scrollHeight,
+        behavior,
+      });
+    }
+    setIsScrolledUp(false);
+    isScrolledUpRef.current = false;
+    setUnreadBelowCount(0);
+  }, []);
+
+  const handleScroll = useCallback(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    // Buffer: if user is more than 120px above the bottom, consider them scrolled up
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    const isUp = distanceFromBottom > 120;
+
+    isScrolledUpRef.current = isUp;
+    setIsScrolledUp(isUp);
+
+    if (!isUp) {
+      setUnreadBelowCount(0);
+    }
+  }, []);
+
+  // Reset scroll state on switching conversations
+  const currentChatId = activeUserId || activeGroupId;
+  useEffect(() => {
+    if (prevConversationIdRef.current !== currentChatId) {
+      prevConversationIdRef.current = currentChatId;
+      setIsScrolledUp(false);
+      isScrolledUpRef.current = false;
+      setUnreadBelowCount(0);
+      prevMessagesLengthRef.current = 0;
+    }
+  }, [currentChatId]);
 
   useEffect(() => {
     const socket = useAuthStore.getState().socket;
@@ -62,9 +162,58 @@ export default function ChatContainer() {
     }
   }, [activeUserId, activeGroupId]);
 
+  // Intelligent auto-scroll on new message sent or received
   useEffect(() => {
-    if (endRef.current && messages) endRef.current.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+    if (!messages || messages.length === 0) {
+      prevMessagesLengthRef.current = 0;
+      return;
+    }
+
+    const prevCount = prevMessagesLengthRef.current;
+    const currentCount = messages.length;
+    const myId = toIdStr(authUser?._id);
+
+    // Initial conversation load: immediately scroll to bottom
+    if (prevCount === 0) {
+      prevMessagesLengthRef.current = currentCount;
+      const raf = requestAnimationFrame(() => {
+        scrollToBottom("auto");
+      });
+      return () => cancelAnimationFrame(raf);
+    }
+
+    if (currentCount > prevCount) {
+      const latestMessage = messages[currentCount - 1];
+      const isSentByMe = toIdStr(latestMessage?.senderId) === myId || Boolean(latestMessage?.isSending);
+
+      if (isSentByMe) {
+        // Current user sent a message: always auto-scroll to reveal it
+        scrollToBottom("smooth");
+      } else {
+        // Message received from contact/group member
+        if (!isScrolledUpRef.current) {
+          // User is already at the bottom: auto-scroll smoothly to newest content
+          scrollToBottom("smooth");
+        } else {
+          // User is manually scrolled up reading past history:
+          // Preserve their scroll position so reading isn't interrupted, and notify
+          setUnreadBelowCount((prev) => prev + (currentCount - prevCount));
+        }
+      }
+    } else if (currentCount === prevCount) {
+      // Message status changed (e.g. read status or delivery update)
+      // Keep pinned to bottom only if user was already at the bottom
+      if (!isScrolledUpRef.current && containerRef.current) {
+        const el = containerRef.current;
+        const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+        if (distanceFromBottom < 150) {
+          scrollToBottom("auto");
+        }
+      }
+    }
+
+    prevMessagesLengthRef.current = currentCount;
+  }, [messages, authUser?._id, scrollToBottom]);
 
   // Real-time mark-as-read when new messages arrive while viewing this conversation
   useEffect(() => {
@@ -106,7 +255,6 @@ export default function ChatContainer() {
     );
   }
 
-  const messageList = Array.isArray(messages) ? messages : [];
   const myId = toIdStr(authUser?._id);
 
   const renderStatusIndicator = (m) => {
@@ -194,10 +342,26 @@ export default function ChatContainer() {
   };
 
   return (
-    <div className="flex-1 flex min-h-0 flex-col overflow-hidden bg-base-100/30">
+    <div className="flex-1 flex min-h-0 flex-col overflow-hidden bg-base-100/30 relative">
       <ChatHeader />
 
-      <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-4 sm:p-6 space-y-4">
+      {isChatSearchOpen && (
+        <ChatSearchBanner
+          query={chatSearchQuery}
+          setQuery={setChatSearchQuery}
+          matchCount={matchingMessages.length}
+          currentMatchIndex={currentMatchIndex}
+          onNextMatch={handleNextMatch}
+          onPrevMatch={handlePreviousMatch}
+          onClose={handleCloseSearch}
+        />
+      )}
+
+      <div
+        ref={containerRef}
+        onScroll={handleScroll}
+        className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-4 sm:p-6 space-y-4"
+      >
         {messageList.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center text-center p-8 space-y-3">
             <div className="size-14 rounded-2xl bg-primary/10 flex items-center justify-center text-primary">
@@ -224,9 +388,13 @@ export default function ChatContainer() {
               : selectedGroup
                 ? (m.senderId?.fullName || "Member")
                 : (selectedUser?.fullName || "User");
+            const isSearchMatch = isChatSearchOpen
+              && Boolean(chatSearchQuery.trim())
+              && m.text?.toLowerCase().includes(chatSearchQuery.trim().toLowerCase());
+            const isCurrentSearchMatch = isSearchMatch && currentMatch?._id === m._id;
 
             return (
-              <div key={m._id || m.clientTempId} className={`chat ${mine ? "chat-end" : "chat-start"} animate-in fade-in duration-200`}>
+              <div id={`msg-${m._id || m.clientTempId}`} key={m._id || m.clientTempId} className={`chat ${mine ? "chat-end" : "chat-start"} animate-in fade-in duration-200`}>
                 <div className="chat-image avatar">
                   <div className="size-9 rounded-full border border-base-300 overflow-hidden shadow-xs">
                     <img src={senderPhoto} alt={senderName} className="object-cover w-full h-full" />
@@ -245,18 +413,35 @@ export default function ChatContainer() {
                     mine
                       ? "bg-primary text-primary-content rounded-2xl rounded-tr-xs"
                       : "bg-base-200/90 text-base-content border border-base-300/80 rounded-2xl rounded-tl-xs"
-                  }`}
+                  } ${isCurrentSearchMatch
+                    ? "ring-4 ring-amber-400 ring-offset-2 ring-offset-base-100 scale-[1.02] shadow-xl"
+                    : isSearchMatch
+                      ? "ring-2 ring-amber-300/70 shadow-md"
+                      : ""}`}
                 >
                   {m.image && (
                     <div className="relative group overflow-hidden rounded-xl">
                       <img
                         src={m.image}
                         alt="Attachment"
+                        onLoad={() => {
+                          if (!isScrolledUpRef.current) {
+                            scrollToBottom("auto");
+                          }
+                        }}
                         className="w-full max-w-md object-cover rounded-xl transition-transform duration-200 group-hover:scale-[1.01]"
                       />
                     </div>
                   )}
-                  {m.text && <p className="text-sm leading-relaxed break-words">{m.text}</p>}
+                  {m.text && (
+                    <p className="text-sm leading-relaxed break-words">
+                      <HighlightedText
+                        text={m.text}
+                        query={isChatSearchOpen ? chatSearchQuery : ""}
+                        isCurrentMatch={currentMatch?._id === m._id}
+                      />
+                    </p>
+                  )}
                 </div>
 
                 {/* Chat Footer with Timestamp & Delivery/Read Checkmark Indicators */}
@@ -270,6 +455,29 @@ export default function ChatContainer() {
         )}
         <div ref={endRef} />
       </div>
+
+      {/* Floating Scroll to Bottom Indicator Button */}
+      {isScrolledUp && (
+        <button
+          type="button"
+          onClick={() => scrollToBottom("smooth")}
+          className="absolute bottom-20 right-4 sm:right-6 z-20 flex items-center gap-2 px-3 py-1.5 rounded-full bg-base-100/90 hover:bg-base-100 border border-base-300 shadow-lg transition-all duration-200 hover:scale-105 active:scale-95 text-xs font-semibold backdrop-blur-md text-base-content select-none animate-in fade-in slide-in-from-bottom-2"
+          title="Scroll to latest message"
+          aria-label="Scroll to bottom"
+        >
+          <ChevronDown className="size-4 text-primary" />
+          {unreadBelowCount > 0 ? (
+            <span className="flex items-center gap-1.5">
+              <span className="size-2 rounded-full bg-primary animate-pulse" />
+              <span className="text-primary font-bold">
+                {unreadBelowCount} new {unreadBelowCount === 1 ? "message" : "messages"}
+              </span>
+            </span>
+          ) : (
+            <span className="text-base-content/80">Scroll to bottom</span>
+          )}
+        </button>
+      )}
 
       <MessageInput />
     </div>

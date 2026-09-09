@@ -1,22 +1,45 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Eye, EyeOff, Loader2, Lock, Mail, MessageSquare, ArrowRight, ShieldCheck } from "lucide-react";
+import { Eye, EyeOff, Loader2, Lock, Mail, MessageSquare, ArrowRight, ShieldCheck, Sparkles, UserCheck } from "lucide-react";
 import { useAuthStore } from "../store/useAuthStore.js";
 import AuthImagePattern from "../components/AuthImagePattern.jsx";
+
+const DEMO_USERS = [
+  { name: "Rajat", role: "Creator", email: "rajat@example.com", password: "123456" },
+  { name: "Rajesh", role: "User", email: "raajeshyadav5641@gmail.com", password: "password123" },
+  { name: "Abhinav", role: "Teammate", email: "abhinav@example.com", password: "123456" },
+  { name: "Tester", role: "Demo", email: "test@example.com", password: "123456" },
+];
 
 export default function LoginPage() {
   const [showPwd, setShowPwd] = useState(false);
   const [form, setForm] = useState({ email: "", password: "" });
+  const [notFoundEmail, setNotFoundEmail] = useState("");
   const { login, isLoggingIn } = useAuthStore();
   const navigate = useNavigate();
 
-  const onSubmit = async (e) => {
-    e.preventDefault();
-    const res = await login(form);
+  const handleLoginWithData = async (credentials) => {
+    setNotFoundEmail("");
+    const res = await login(credentials);
     if (res?.needsVerification) {
-      navigate(`/verify-otp?email=${encodeURIComponent(res.email)}`);
+      navigate(`/verify-otp?email=${encodeURIComponent(res.email)}${res.devOtp ? `&code=${encodeURIComponent(res.devOtp)}` : ""}`);
     } else if (res?.ok) {
       navigate("/chat");
+    } else if (res?.userNotFound) {
+      setNotFoundEmail(credentials.email);
+    }
+  };
+
+  const onSubmit = async (e) => {
+    e.preventDefault();
+    await handleLoginWithData(form);
+  };
+
+  const selectDemoUser = (user, autoSubmit = false) => {
+    setForm({ email: user.email, password: user.password });
+    setNotFoundEmail("");
+    if (autoSubmit) {
+      handleLoginWithData({ email: user.email, password: user.password });
     }
   };
 
@@ -25,11 +48,11 @@ export default function LoginPage() {
       
       {/* Left Form Column */}
       <div className="flex flex-col justify-center items-center p-6 sm:p-12 lg:p-16">
-        <div className="w-full max-w-md space-y-8">
+        <div className="w-full max-w-md space-y-6">
           
           {/* Header */}
           <div className="text-center space-y-2">
-            <div className="inline-flex items-center justify-center size-14 rounded-2xl bg-primary/10 text-primary mb-2 shadow-sm">
+            <div className="inline-flex items-center justify-center size-14 rounded-2xl bg-primary/10 text-primary mb-1 shadow-sm">
               <MessageSquare className="size-7" />
             </div>
             <h1 className="text-3xl font-extrabold tracking-tight">Welcome Back</h1>
@@ -38,8 +61,47 @@ export default function LoginPage() {
             </p>
           </div>
 
+          {/* Quick Demo Login Box */}
+          <div className="bg-base-200/70 border border-base-300 rounded-2xl p-4 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold uppercase tracking-wider text-base-content/70 flex items-center gap-1.5">
+                <Sparkles className="size-3.5 text-primary" />
+                <span>Instant Demo Accounts</span>
+              </span>
+              <span className="badge badge-sm badge-ghost text-[10px]">1-Click Login</span>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {DEMO_USERS.map((user) => (
+                <button
+                  key={user.email}
+                  type="button"
+                  onClick={() => selectDemoUser(user, true)}
+                  disabled={isLoggingIn}
+                  className="btn btn-xs sm:btn-sm btn-outline hover:btn-primary flex flex-col h-auto py-1.5 px-2 text-left rounded-xl transition-all normal-case"
+                  title={`Sign in as ${user.name} (${user.email})`}
+                >
+                  <span className="font-bold text-xs truncate w-full">{user.name}</span>
+                  <span className="text-[10px] text-base-content/50 truncate w-full">{user.role}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* User Not Found Warning helper */}
+          {notFoundEmail && (
+            <div className="alert alert-warning py-2.5 px-4 text-xs rounded-xl flex items-center justify-between">
+              <span>No account for <strong>{notFoundEmail}</strong>.</span>
+              <Link
+                to={`/signup?email=${encodeURIComponent(notFoundEmail)}`}
+                className="btn btn-xs btn-neutral"
+              >
+                Sign Up Now
+              </Link>
+            </div>
+          )}
+
           {/* Form */}
-          <form onSubmit={onSubmit} className="space-y-5">
+          <form onSubmit={onSubmit} className="space-y-4">
             
             {/* Email Field */}
             <div className="form-control">
@@ -113,9 +175,9 @@ export default function LoginPage() {
             </Link>
           </div>
 
-          <div className="flex items-center justify-center gap-2 text-xs text-base-content/50 border-t border-base-200 pt-6">
+          <div className="flex items-center justify-center gap-2 text-xs text-base-content/50 border-t border-base-200 pt-4">
             <ShieldCheck className="size-4 text-success" />
-            <span>256-bit encrypted SSL socket authentication</span>
+            <span>256-bit encrypted authentication & session token</span>
           </div>
 
         </div>
