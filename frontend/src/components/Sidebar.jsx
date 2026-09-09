@@ -217,7 +217,7 @@ export default function Sidebar() {
               const isSelected = toIdStr(selectedUser?._id) === uId;
               const isOnline = safeOnlineUsers.map(toIdStr).includes(uId);
               const uTypers = (uId && typingUsers[uId]) || {};
-              const isUserTyping = Boolean(uTypers[uId]);
+              const isUserTyping = Boolean(uTypers[uId]) || Object.keys(uTypers).some((id) => id !== toIdStr(authUser?._id));
               return (
                 <button
                   key={u._id}

@@ -1,7 +1,7 @@
 import React, { useRef, useState, useEffect } from "react";
 import { Image, Send, X, Paperclip } from "lucide-react";
 import toast from "react-hot-toast";
-import { useChatStore } from "../store/useChatStore.js";
+import { useChatStore, toIdStr } from "../store/useChatStore.js";
 
 export default function MessageInput() {
   const [text, setText] = useState("");
@@ -10,37 +10,48 @@ export default function MessageInput() {
   const isSendingRef = useRef(false);
   const fileRef = useRef(null);
   const isTypingRef = useRef(false);
+  const lastTypingEmitRef = useRef(0);
   const typingTimeoutRef = useRef(null);
   const { sendMessage, sendTypingStart, sendTypingStop, selectedUser, selectedGroup } = useChatStore();
+
+  const currentConvId = toIdStr(selectedUser?._id || selectedGroup?._id);
 
   useEffect(() => {
     return () => {
       if (isTypingRef.current) {
         sendTypingStop();
         isTypingRef.current = false;
+        lastTypingEmitRef.current = 0;
       }
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     };
-  }, [selectedUser?._id, selectedGroup?._id, sendTypingStop]);
+  }, [currentConvId]);
 
   const handleInputChange = (e) => {
     const val = e.target.value;
     setText(val);
 
     if (val.trim().length > 0) {
-      if (!isTypingRef.current) {
+      const now = Date.now();
+      // Heartbeat: emit immediately on start, and re-emit every 1.5s while user types continuously
+      if (!isTypingRef.current || now - lastTypingEmitRef.current >= 1500) {
         isTypingRef.current = true;
+        lastTypingEmitRef.current = now;
         sendTypingStart();
       }
+
+      // Reset inactivity timeout: user considered idle after 3s of no keystrokes
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
       typingTimeoutRef.current = setTimeout(() => {
         sendTypingStop();
         isTypingRef.current = false;
-      }, 2500);
+        lastTypingEmitRef.current = 0;
+      }, 3000);
     } else {
       if (isTypingRef.current) {
         sendTypingStop();
         isTypingRef.current = false;
+        lastTypingEmitRef.current = 0;
       }
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     }
@@ -70,6 +81,7 @@ export default function MessageInput() {
     if (isTypingRef.current) {
       sendTypingStop();
       isTypingRef.current = false;
+      lastTypingEmitRef.current = 0;
     }
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
 

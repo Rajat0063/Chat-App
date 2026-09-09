@@ -23,18 +23,19 @@ export default function ChatContainer() {
   } = useChatStore();
   const { authUser } = useAuthStore();
   const endRef = useRef(null);
+  const activeUserId = toIdStr(selectedUser?._id);
+  const activeGroupId = toIdStr(selectedGroup?._id);
 
   useEffect(() => {
     const socket = useAuthStore.getState().socket;
 
-    if (selectedGroup) {
-      const gId = toIdStr(selectedGroup._id);
+    if (activeGroupId) {
       if (socket && socket.connected) {
-        socket.emit("enterChat", { type: "group", id: gId });
+        socket.emit("enterChat", { type: "group", id: activeGroupId });
       }
-      getGroupMessages(gId);
+      getGroupMessages(activeGroupId);
       subscribeToGroupMessages();
-      markGroupMessagesAsRead(gId);
+      markGroupMessagesAsRead(activeGroupId);
 
       return () => {
         if (socket && socket.connected) {
@@ -44,14 +45,13 @@ export default function ChatContainer() {
       };
     }
 
-    if (selectedUser) {
-      const uId = toIdStr(selectedUser._id);
+    if (activeUserId) {
       if (socket && socket.connected) {
-        socket.emit("enterChat", { type: "direct", id: uId });
+        socket.emit("enterChat", { type: "direct", id: activeUserId });
       }
-      getMessages(uId);
+      getMessages(activeUserId);
       subscribeToMessages();
-      markMessagesAsRead(uId);
+      markMessagesAsRead(activeUserId);
 
       return () => {
         if (socket && socket.connected) {
@@ -60,7 +60,7 @@ export default function ChatContainer() {
         unsubscribeFromMessages();
       };
     }
-  }, [selectedUser?._id, selectedGroup?._id]);
+  }, [activeUserId, activeGroupId]);
 
   useEffect(() => {
     if (endRef.current && messages) endRef.current.scrollIntoView({ behavior: "smooth" });

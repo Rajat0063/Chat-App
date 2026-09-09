@@ -230,6 +230,14 @@ export const useAuthStore = create((set, get) => ({
         selectedGroup: state.selectedGroup?._id === groupId ? null : state.selectedGroup,
       }));
     });
+    s.off("userTyping");
+    s.on("userTyping", (payload) => {
+      useChatStore.getState().handleIncomingUserTyping(payload);
+    });
+    s.off("userStopTyping");
+    s.on("userStopTyping", (payload) => {
+      useChatStore.getState().handleIncomingUserStopTyping(payload);
+    });
   },
 
   disconnectSocket: () => {

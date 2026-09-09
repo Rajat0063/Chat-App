@@ -34,7 +34,7 @@ export default function ChatHeader() {
 
   // Real-time typing indicators
   const directTypers = (selectedUserId && typingUsers[selectedUserId]) || {};
-  const isDirectTyping = Boolean(directTypers[selectedUserId]);
+  const isDirectTyping = Boolean(directTypers[selectedUserId]) || Object.keys(directTypers).some((uId) => uId !== authUserId);
 
   const groupTypers = (selectedGroupId && typingUsers[selectedGroupId]) || {};
   const groupTypingNames = Object.entries(groupTypers)

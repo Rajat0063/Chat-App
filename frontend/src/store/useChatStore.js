@@ -98,6 +98,44 @@ export const useChatStore = create((set, get) => ({
     });
   },
 
+  handleIncomingUserTyping: ({ userId, conversationId, userName, type, groupId }) => {
+    const convId = toIdStr(groupId || conversationId || userId);
+    const uId = toIdStr(userId);
+    const authUser = useAuthStore.getState().authUser;
+    if (uId === toIdStr(authUser?._id)) return;
+
+    set((state) => {
+      const prevConv = state.typingUsers[convId] || {};
+      return {
+        typingUsers: {
+          ...state.typingUsers,
+          [convId]: {
+            ...prevConv,
+            [uId]: { userName: userName || "Contact", time: Date.now() },
+          },
+        },
+      };
+    });
+
+    const timerKey = `${convId}_${uId}`;
+    if (typingTimeouts[timerKey]) clearTimeout(typingTimeouts[timerKey]);
+    // 5-second safety timer; will continuously refresh while user types continuously
+    typingTimeouts[timerKey] = setTimeout(() => {
+      get().removeTypingUser(convId, uId);
+    }, 5000);
+  },
+
+  handleIncomingUserStopTyping: ({ userId, conversationId, type, groupId }) => {
+    const convId = toIdStr(groupId || conversationId || userId);
+    const uId = toIdStr(userId);
+    const timerKey = `${convId}_${uId}`;
+    if (typingTimeouts[timerKey]) {
+      clearTimeout(typingTimeouts[timerKey]);
+      delete typingTimeouts[timerKey];
+    }
+    get().removeTypingUser(convId, uId);
+  },
+
   sendTypingStart: () => {
     const socket = useAuthStore.getState().socket;
     const authUser = useAuthStore.getState().authUser;
@@ -365,42 +403,13 @@ export const useChatStore = create((set, get) => ({
     });
 
     socket.off("userTyping");
-    socket.on("userTyping", ({ userId, conversationId, userName, type, groupId }) => {
-      const convId = toIdStr(groupId || conversationId || userId);
-      const uId = toIdStr(userId);
-      const authUser = useAuthStore.getState().authUser;
-      if (uId === toIdStr(authUser?._id)) return;
-
-      set((state) => {
-        const prevConv = state.typingUsers[convId] || {};
-        return {
-          typingUsers: {
-            ...state.typingUsers,
-            [convId]: {
-              ...prevConv,
-              [uId]: { userName: userName || "Contact", time: Date.now() },
-            },
-          },
-        };
-      });
-
-      const timerKey = `${convId}_${uId}`;
-      if (typingTimeouts[timerKey]) clearTimeout(typingTimeouts[timerKey]);
-      typingTimeouts[timerKey] = setTimeout(() => {
-        get().removeTypingUser(convId, uId);
-      }, 4000);
+    socket.on("userTyping", (payload) => {
+      get().handleIncomingUserTyping(payload);
     });
 
     socket.off("userStopTyping");
-    socket.on("userStopTyping", ({ userId, conversationId, type, groupId }) => {
-      const convId = toIdStr(groupId || conversationId || userId);
-      const uId = toIdStr(userId);
-      const timerKey = `${convId}_${uId}`;
-      if (typingTimeouts[timerKey]) {
-        clearTimeout(typingTimeouts[timerKey]);
-        delete typingTimeouts[timerKey];
-      }
-      get().removeTypingUser(convId, uId);
+    socket.on("userStopTyping", (payload) => {
+      get().handleIncomingUserStopTyping(payload);
     });
 
     socket.off("messagesRead");
@@ -477,42 +486,13 @@ export const useChatStore = create((set, get) => ({
     });
 
     socket.off("userTyping");
-    socket.on("userTyping", ({ userId, conversationId, userName, type, groupId }) => {
-      const convId = toIdStr(groupId || conversationId || userId);
-      const uId = toIdStr(userId);
-      const authUser = useAuthStore.getState().authUser;
-      if (uId === toIdStr(authUser?._id)) return;
-
-      set((state) => {
-        const prevConv = state.typingUsers[convId] || {};
-        return {
-          typingUsers: {
-            ...state.typingUsers,
-            [convId]: {
-              ...prevConv,
-              [uId]: { userName: userName || "Member", time: Date.now() },
-            },
-          },
-        };
-      });
-
-      const timerKey = `${convId}_${uId}`;
-      if (typingTimeouts[timerKey]) clearTimeout(typingTimeouts[timerKey]);
-      typingTimeouts[timerKey] = setTimeout(() => {
-        get().removeTypingUser(convId, uId);
-      }, 4000);
+    socket.on("userTyping", (payload) => {
+      get().handleIncomingUserTyping(payload);
     });
 
     socket.off("userStopTyping");
-    socket.on("userStopTyping", ({ userId, conversationId, type, groupId }) => {
-      const convId = toIdStr(groupId || conversationId || userId);
-      const uId = toIdStr(userId);
-      const timerKey = `${convId}_${uId}`;
-      if (typingTimeouts[timerKey]) {
-        clearTimeout(typingTimeouts[timerKey]);
-        delete typingTimeouts[timerKey];
-      }
-      get().removeTypingUser(convId, uId);
+    socket.on("userStopTyping", (payload) => {
+      get().handleIncomingUserStopTyping(payload);
     });
 
     socket.off("groupMessagesRead");
@@ -544,8 +524,6 @@ export const useChatStore = create((set, get) => ({
       socket.off("messagesRead");
       socket.off("messagesDelivered");
       socket.off("groupMessagesRead");
-      socket.off("userTyping");
-      socket.off("userStopTyping");
     }
   },
 
