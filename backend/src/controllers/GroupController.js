@@ -44,12 +44,48 @@ export const getGroupMessages = async (req, res) => {
     if (!group) return res.status(404).json({ message: "Group not found" });
     if (!group.members.some((m) => m.equals(me))) return res.status(403).json({ message: "Not a group member" });
 
+    // Mark unread messages in this group as read by this user
+    await Message.updateMany(
+      { groupId, senderId: { $ne: me } },
+      { $addToSet: { readBy: me } }
+    );
+
+    // Notify group members
+    group.members.forEach((memberId) => {
+      const sids = getReceiverSocketIds(memberId.toString());
+      sids.forEach((sid) => io.to(sid).emit("groupMessagesRead", { groupId, readerId: me.toString() }));
+    });
+
     const messages = await Message.find({ groupId, deletedFor: { $nin: [me] } })
       .populate("senderId", "fullName profilePic")
       .sort({ createdAt: 1 });
     res.json(messages);
   } catch (err) {
     console.log("getGroupMessages:", err.message);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+export const markGroupMessagesAsRead = async (req, res) => {
+  try {
+    const { id: groupId } = req.params;
+    const me = req.user._id;
+    const group = await Group.findById(groupId);
+    if (!group) return res.status(404).json({ message: "Group not found" });
+
+    await Message.updateMany(
+      { groupId, senderId: { $ne: me } },
+      { $addToSet: { readBy: me } }
+    );
+
+    group.members.forEach((memberId) => {
+      const sids = getReceiverSocketIds(memberId.toString());
+      sids.forEach((sid) => io.to(sid).emit("groupMessagesRead", { groupId, readerId: me.toString() }));
+    });
+
+    res.json({ success: true });
+  } catch (err) {
+    console.log("markGroupMessagesAsRead:", err.message);
     res.status(500).json({ message: "Internal server error" });
   }
 };
@@ -139,13 +175,27 @@ export const sendGroupMessage = async (req, res) => {
     if (!group) return res.status(404).json({ message: "Group not found" });
     if (!group.members.some((m) => m.equals(senderId))) return res.status(403).json({ message: "Not a group member" });
 
-    let newMessage = await Message.create({ senderId, receiverId: null, text: text || "", image: image || "", groupId });
+    const otherMembers = group.members.filter((m) => !m.equals(senderId));
+    const anyOtherOnline = otherMembers.some((m) => getReceiverSocketIds(m.toString()).length > 0);
+    const status = anyOtherOnline ? "delivered" : "sent";
+    const deliveredAt = anyOtherOnline ? new Date() : null;
+
+    let newMessage = await Message.create({
+      senderId,
+      receiverId: null,
+      text: text || "",
+      image: image || "",
+      groupId,
+      status,
+      deliveredAt,
+      readBy: [senderId],
+    });
     newMessage = await newMessage.populate("senderId", "fullName profilePic");
 
     // emit to all online group members
     group.members.forEach((memberId) => {
-      const sid = getReceiverSocketId(memberId.toString());
-      if (sid) io.to(sid).emit("newGroupMessage", newMessage);
+      const sids = getReceiverSocketIds(memberId.toString());
+      sids.forEach((sid) => io.to(sid).emit("newGroupMessage", newMessage));
     });
 
     res.status(201).json(newMessage);

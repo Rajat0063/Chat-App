@@ -1,6 +1,6 @@
 import User from "../models/UserModel.js";
 import Message from "../models/MessageModel.js";
-import { io, getReceiverSocketId } from "../lib/socket.js";
+import { io, getReceiverSocketId, getReceiverSocketIds } from "../lib/socket.js";
 
 export const getUsersForSidebar = async (req, res) => {
   try {
@@ -20,6 +20,31 @@ export const getMessages = async (req, res) => {
   try {
     const { id: otherId } = req.params;
     const me = req.user._id;
+
+    // Automatically mark all unread messages from otherId to me as read
+    const now = new Date();
+    await Message.updateMany(
+      {
+        senderId: otherId,
+        receiverId: me,
+        status: { $ne: "read" },
+      },
+      {
+        $set: { status: "read", readAt: now },
+        $addToSet: { readBy: me },
+      }
+    );
+
+    // Notify the other user in real-time that their messages were read
+    const senderSocketIds = getReceiverSocketIds(otherId.toString());
+    senderSocketIds.forEach((sid) => {
+      io.to(sid).emit("messagesRead", {
+        readerId: me.toString(),
+        otherId: otherId.toString(),
+        readAt: now,
+      });
+    });
+
     const messages = await Message.find({
       $and: [
         { deletedFor: { $nin: [me] } },
@@ -32,6 +57,40 @@ export const getMessages = async (req, res) => {
     res.json(messages);
   } catch (err) {
     console.log("getMessages:", err.message);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+export const markMessagesAsRead = async (req, res) => {
+  try {
+    const { id: otherId } = req.params;
+    const me = req.user._id;
+    const now = new Date();
+
+    await Message.updateMany(
+      {
+        senderId: otherId,
+        receiverId: me,
+        status: { $ne: "read" },
+      },
+      {
+        $set: { status: "read", readAt: now },
+        $addToSet: { readBy: me },
+      }
+    );
+
+    const senderSocketIds = getReceiverSocketIds(otherId.toString());
+    senderSocketIds.forEach((sid) => {
+      io.to(sid).emit("messagesRead", {
+        readerId: me.toString(),
+        otherId: otherId.toString(),
+        readAt: now,
+      });
+    });
+
+    res.json({ success: true, message: "Messages marked as read" });
+  } catch (err) {
+    console.log("markMessagesAsRead:", err.message);
     res.status(500).json({ message: "Internal server error" });
   }
 };
@@ -57,12 +116,24 @@ export const sendMessage = async (req, res) => {
       return res.status(403).json({ message: "You have blocked this user." });
     }
 
+    const receiverSocketIds = getReceiverSocketIds(receiverId.toString());
+    const isReceiverOnline = receiverSocketIds.length > 0;
+    const status = isReceiverOnline ? "delivered" : "sent";
+    const deliveredAt = isReceiverOnline ? new Date() : null;
+
     const newMessage = await Message.create({
-      senderId, receiverId, text: text || "", image: image || "",
+      senderId,
+      receiverId,
+      text: text || "",
+      image: image || "",
+      status,
+      deliveredAt,
+      readBy: [senderId],
     });
 
-    const receiverSocketId = getReceiverSocketId(receiverId);
-    if (receiverSocketId) io.to(receiverSocketId).emit("newMessage", newMessage);
+    receiverSocketIds.forEach((sid) => {
+      io.to(sid).emit("newMessage", newMessage);
+    });
 
     res.status(201).json(newMessage);
   } catch (err) {
