@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { Users, Search, Plus, UserCheck, MessageSquare, Radio, X } from "lucide-react";
-import { useChatStore } from "../store/useChatStore.js";
+import { useChatStore, toIdStr } from "../store/useChatStore.js";
 import { useAuthStore } from "../store/useAuthStore.js";
 import SidebarSkeleton from "./skeletons/SidebarSkeleton.jsx";
 
 export default function Sidebar() {
-  const { getUsers, users, selectedUser, setSelectedUser, isUsersLoading } = useChatStore();
+  const { getUsers, users, selectedUser, setSelectedUser, isUsersLoading, typingUsers } = useChatStore();
   const { getGroups, groups, setSelectedGroup, selectedGroup, createGroup } = useChatStore();
   const { onlineUsers, authUser } = useAuthStore();
 
@@ -166,7 +166,10 @@ export default function Sidebar() {
               Group Rooms ({filteredGroups.length})
             </div>
             {filteredGroups.map((g) => {
-              const isSelected = selectedGroup?._id === g._id;
+              const gId = toIdStr(g._id);
+              const isSelected = toIdStr(selectedGroup?._id) === gId;
+              const gTypers = (gId && typingUsers[gId]) || {};
+              const gTypingCount = Object.keys(gTypers).length;
               return (
                 <button
                   key={g._id}
@@ -187,9 +190,15 @@ export default function Sidebar() {
                         {g.members?.length || 0}m
                       </span>
                     </div>
-                    <p className="text-xs text-base-content/60 truncate font-normal">
-                      {g.description || "Group discussion"}
-                    </p>
+                    {gTypingCount > 0 ? (
+                      <p className="text-xs text-primary font-medium truncate flex items-center gap-1">
+                        <span>typing...</span>
+                      </p>
+                    ) : (
+                      <p className="text-xs text-base-content/60 truncate font-normal">
+                        {g.description || "Group discussion"}
+                      </p>
+                    )}
                   </div>
                 </button>
               );
@@ -204,8 +213,11 @@ export default function Sidebar() {
               Direct Messages ({filteredUsers.length})
             </div>
             {filteredUsers.map((u) => {
-              const isSelected = selectedUser?._id === u._id;
-              const isOnline = safeOnlineUsers.includes(u._id);
+              const uId = toIdStr(u._id);
+              const isSelected = toIdStr(selectedUser?._id) === uId;
+              const isOnline = safeOnlineUsers.map(toIdStr).includes(uId);
+              const uTypers = (uId && typingUsers[uId]) || {};
+              const isUserTyping = Boolean(uTypers[uId]);
               return (
                 <button
                   key={u._id}
@@ -229,9 +241,15 @@ export default function Sidebar() {
                         <span className="text-[10px] text-emerald-500 font-medium">Online</span>
                       )}
                     </div>
-                    <p className="text-xs text-base-content/60 truncate font-normal">
-                      {u.about || (isOnline ? "Active now" : "Offline")}
-                    </p>
+                    {isUserTyping ? (
+                      <p className="text-xs text-primary font-medium truncate flex items-center gap-1">
+                        <span>typing...</span>
+                      </p>
+                    ) : (
+                      <p className="text-xs text-base-content/60 truncate font-normal">
+                        {u.about || (isOnline ? "Active now" : "Offline")}
+                      </p>
+                    )}
                   </div>
                 </button>
               );

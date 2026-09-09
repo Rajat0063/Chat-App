@@ -70,6 +70,8 @@ const appendUniqueMessage = (messages, nextMessage) => {
   return [...list, { ...nextMessage, isSending: false }];
 };
 
+const typingTimeouts = {};
+
 export const useChatStore = create((set, get) => ({
   messages: [],
   users: [],
@@ -79,6 +81,61 @@ export const useChatStore = create((set, get) => ({
   blockedUsers: [],
   isUsersLoading: false,
   isMessagesLoading: false,
+  typingUsers: {}, // { [conversationId]: { [userId]: { userName, time } } }
+
+  removeTypingUser: (convId, uId) => {
+    set((state) => {
+      const conv = state.typingUsers[convId];
+      if (!conv || !conv[uId]) return state;
+      const nextConv = { ...conv };
+      delete nextConv[uId];
+      return {
+        typingUsers: {
+          ...state.typingUsers,
+          [convId]: nextConv,
+        },
+      };
+    });
+  },
+
+  sendTypingStart: () => {
+    const socket = useAuthStore.getState().socket;
+    const authUser = useAuthStore.getState().authUser;
+    if (!socket || !socket.connected) return;
+
+    const { selectedUser, selectedGroup } = get();
+    if (selectedUser) {
+      socket.emit("typingStart", {
+        type: "direct",
+        receiverId: toIdStr(selectedUser._id),
+        userName: authUser?.fullName || "Contact",
+      });
+    } else if (selectedGroup) {
+      socket.emit("typingStart", {
+        type: "group",
+        groupId: toIdStr(selectedGroup._id),
+        userName: authUser?.fullName || "Member",
+      });
+    }
+  },
+
+  sendTypingStop: () => {
+    const socket = useAuthStore.getState().socket;
+    if (!socket || !socket.connected) return;
+
+    const { selectedUser, selectedGroup } = get();
+    if (selectedUser) {
+      socket.emit("typingStop", {
+        type: "direct",
+        receiverId: toIdStr(selectedUser._id),
+      });
+    } else if (selectedGroup) {
+      socket.emit("typingStop", {
+        type: "group",
+        groupId: toIdStr(selectedGroup._id),
+      });
+    }
+  },
 
   getUsers: async () => {
     set({ isUsersLoading: true });
@@ -293,6 +350,11 @@ export const useChatStore = create((set, get) => ({
 
       if (!isFromSelected && !isFromMe) return;
 
+      // Clear sender from typing indicator upon message arrival
+      if (msgSenderId && sSelectedId) {
+        get().removeTypingUser(sSelectedId, msgSenderId);
+      }
+
       set({ messages: appendUniqueMessage(get().messages, newMessage) });
 
       // Automatically mark as read since recipient is currently actively looking at this conversation
@@ -300,6 +362,45 @@ export const useChatStore = create((set, get) => ({
         socket.emit("markAsRead", { senderId: sSelectedId, receiverId: myId });
         try { axiosInstance.post(`/messages/read/${sSelectedId}`); } catch {}
       }
+    });
+
+    socket.off("userTyping");
+    socket.on("userTyping", ({ userId, conversationId, userName, type, groupId }) => {
+      const convId = toIdStr(groupId || conversationId || userId);
+      const uId = toIdStr(userId);
+      const authUser = useAuthStore.getState().authUser;
+      if (uId === toIdStr(authUser?._id)) return;
+
+      set((state) => {
+        const prevConv = state.typingUsers[convId] || {};
+        return {
+          typingUsers: {
+            ...state.typingUsers,
+            [convId]: {
+              ...prevConv,
+              [uId]: { userName: userName || "Contact", time: Date.now() },
+            },
+          },
+        };
+      });
+
+      const timerKey = `${convId}_${uId}`;
+      if (typingTimeouts[timerKey]) clearTimeout(typingTimeouts[timerKey]);
+      typingTimeouts[timerKey] = setTimeout(() => {
+        get().removeTypingUser(convId, uId);
+      }, 4000);
+    });
+
+    socket.off("userStopTyping");
+    socket.on("userStopTyping", ({ userId, conversationId, type, groupId }) => {
+      const convId = toIdStr(groupId || conversationId || userId);
+      const uId = toIdStr(userId);
+      const timerKey = `${convId}_${uId}`;
+      if (typingTimeouts[timerKey]) {
+        clearTimeout(typingTimeouts[timerKey]);
+        delete typingTimeouts[timerKey];
+      }
+      get().removeTypingUser(convId, uId);
     });
 
     socket.off("messagesRead");
@@ -359,16 +460,59 @@ export const useChatStore = create((set, get) => ({
       const msgGroupId = toIdStr(newMessage.groupId);
       if (currentGroupId !== msgGroupId) return;
 
+      // Clear sender from typing indicator upon message arrival
+      if (msgSenderId && currentGroupId) {
+        get().removeTypingUser(currentGroupId, msgSenderId);
+      }
+
       set({ messages: appendUniqueMessage(get().messages, newMessage) });
 
       const authUser = useAuthStore.getState().authUser;
       const myId = toIdStr(authUser?._id);
-      const msgSenderId = toIdStr(newMessage.senderId);
 
       if (myId && msgSenderId !== myId) {
         socket.emit("markGroupAsRead", { groupId: currentGroupId, readerId: myId });
         try { axiosInstance.post(`/groups/${currentGroupId}/read`); } catch {}
       }
+    });
+
+    socket.off("userTyping");
+    socket.on("userTyping", ({ userId, conversationId, userName, type, groupId }) => {
+      const convId = toIdStr(groupId || conversationId || userId);
+      const uId = toIdStr(userId);
+      const authUser = useAuthStore.getState().authUser;
+      if (uId === toIdStr(authUser?._id)) return;
+
+      set((state) => {
+        const prevConv = state.typingUsers[convId] || {};
+        return {
+          typingUsers: {
+            ...state.typingUsers,
+            [convId]: {
+              ...prevConv,
+              [uId]: { userName: userName || "Member", time: Date.now() },
+            },
+          },
+        };
+      });
+
+      const timerKey = `${convId}_${uId}`;
+      if (typingTimeouts[timerKey]) clearTimeout(typingTimeouts[timerKey]);
+      typingTimeouts[timerKey] = setTimeout(() => {
+        get().removeTypingUser(convId, uId);
+      }, 4000);
+    });
+
+    socket.off("userStopTyping");
+    socket.on("userStopTyping", ({ userId, conversationId, type, groupId }) => {
+      const convId = toIdStr(groupId || conversationId || userId);
+      const uId = toIdStr(userId);
+      const timerKey = `${convId}_${uId}`;
+      if (typingTimeouts[timerKey]) {
+        clearTimeout(typingTimeouts[timerKey]);
+        delete typingTimeouts[timerKey];
+      }
+      get().removeTypingUser(convId, uId);
     });
 
     socket.off("groupMessagesRead");
@@ -400,10 +544,13 @@ export const useChatStore = create((set, get) => ({
       socket.off("messagesRead");
       socket.off("messagesDelivered");
       socket.off("groupMessagesRead");
+      socket.off("userTyping");
+      socket.off("userStopTyping");
     }
   },
 
   setSelectedUser: (user) => {
+    get().sendTypingStop();
     const socket = useAuthStore.getState().socket;
     set({ selectedUser: user, selectedGroup: null });
     if (user) {
@@ -419,6 +566,7 @@ export const useChatStore = create((set, get) => ({
     }
   },
   setSelectedGroup: (group) => {
+    get().sendTypingStop();
     const socket = useAuthStore.getState().socket;
     set({ selectedGroup: group, selectedUser: null });
     if (group) {

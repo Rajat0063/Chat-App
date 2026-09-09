@@ -121,11 +121,113 @@ io.on("connection", async (socket) => {
     }
   });
 
-  socket.on("leaveChat", () => {
+  socket.on("leaveChat", async () => {
+    const active = socketActiveChatMap[socket.id] || (userId ? userActiveChatMap[userId] : null);
+    if (active && userId) {
+      if (active.type === "direct" && active.id) {
+        const sids = getReceiverSocketIds(active.id);
+        sids.forEach((sid) => io.to(sid).emit("userStopTyping", { userId, type: "direct", conversationId: userId }));
+      } else if (active.type === "group" && active.id) {
+        try {
+          const Group = (await import("../models/GroupModel.js")).default;
+          const group = await Group.findById(active.id).select("members");
+          if (group && group.members) {
+            group.members.forEach((mId) => {
+              const mStr = (mId?._id || mId).toString();
+              if (mStr !== userId) {
+                const sids = getReceiverSocketIds(mStr);
+                sids.forEach((sid) => io.to(sid).emit("userStopTyping", { userId, groupId: active.id, conversationId: active.id, type: "group" }));
+              }
+            });
+          }
+        } catch {}
+      }
+    }
+
     if (userId) {
       delete userActiveChatMap[userId];
     }
     delete socketActiveChatMap[socket.id];
+  });
+
+  socket.on("typingStart", async ({ type, receiverId, groupId, userName }) => {
+    if (!userId) return;
+    if (type === "direct" && receiverId) {
+      const cleanReceiverId = (receiverId?._id || receiverId).toString();
+      const sids = getReceiverSocketIds(cleanReceiverId);
+      sids.forEach((sid) => {
+        io.to(sid).emit("userTyping", {
+          userId,
+          type: "direct",
+          conversationId: userId,
+          userName: userName || "User",
+        });
+      });
+    } else if (type === "group" && groupId) {
+      const cleanGroupId = (groupId?._id || groupId).toString();
+      try {
+        const Group = (await import("../models/GroupModel.js")).default;
+        const group = await Group.findById(cleanGroupId).select("members");
+        if (group && group.members) {
+          group.members.forEach((mId) => {
+            const mStr = (mId?._id || mId).toString();
+            if (mStr !== userId) {
+              const sids = getReceiverSocketIds(mStr);
+              sids.forEach((sid) => {
+                io.to(sid).emit("userTyping", {
+                  userId,
+                  groupId: cleanGroupId,
+                  conversationId: cleanGroupId,
+                  type: "group",
+                  userName: userName || "Member",
+                });
+              });
+            }
+          });
+        }
+      } catch (e) {
+        console.log("typingStart group error:", e.message);
+      }
+    }
+  });
+
+  socket.on("typingStop", async ({ type, receiverId, groupId }) => {
+    if (!userId) return;
+    if (type === "direct" && receiverId) {
+      const cleanReceiverId = (receiverId?._id || receiverId).toString();
+      const sids = getReceiverSocketIds(cleanReceiverId);
+      sids.forEach((sid) => {
+        io.to(sid).emit("userStopTyping", {
+          userId,
+          type: "direct",
+          conversationId: userId,
+        });
+      });
+    } else if (type === "group" && groupId) {
+      const cleanGroupId = (groupId?._id || groupId).toString();
+      try {
+        const Group = (await import("../models/GroupModel.js")).default;
+        const group = await Group.findById(cleanGroupId).select("members");
+        if (group && group.members) {
+          group.members.forEach((mId) => {
+            const mStr = (mId?._id || mId).toString();
+            if (mStr !== userId) {
+              const sids = getReceiverSocketIds(mStr);
+              sids.forEach((sid) => {
+                io.to(sid).emit("userStopTyping", {
+                  userId,
+                  groupId: cleanGroupId,
+                  conversationId: cleanGroupId,
+                  type: "group",
+                });
+              });
+            }
+          });
+        }
+      } catch (e) {
+        console.log("typingStop group error:", e.message);
+      }
+    }
   });
 
   socket.on("markAsRead", async ({ senderId, receiverId }) => {
@@ -191,7 +293,29 @@ io.on("connection", async (socket) => {
     }
   });
 
-  socket.on("disconnect", () => {
+  socket.on("disconnect", async () => {
+    const active = socketActiveChatMap[socket.id] || (userId ? userActiveChatMap[userId] : null);
+    if (active && userId) {
+      if (active.type === "direct" && active.id) {
+        const sids = getReceiverSocketIds(active.id);
+        sids.forEach((sid) => io.to(sid).emit("userStopTyping", { userId, type: "direct", conversationId: userId }));
+      } else if (active.type === "group" && active.id) {
+        try {
+          const Group = (await import("../models/GroupModel.js")).default;
+          const group = await Group.findById(active.id).select("members");
+          if (group && group.members) {
+            group.members.forEach((mId) => {
+              const mStr = (mId?._id || mId).toString();
+              if (mStr !== userId) {
+                const sids = getReceiverSocketIds(mStr);
+                sids.forEach((sid) => io.to(sid).emit("userStopTyping", { userId, groupId: active.id, conversationId: active.id, type: "group" }));
+              }
+            });
+          }
+        } catch {}
+      }
+    }
+
     if (userId && userSocketMap[userId]) {
       userSocketMap[userId].delete(socket.id);
       if (userSocketMap[userId].size === 0) {

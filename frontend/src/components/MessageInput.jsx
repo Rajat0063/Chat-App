@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import React, { useRef, useState, useEffect } from "react";
 import { Image, Send, X, Paperclip } from "lucide-react";
 import toast from "react-hot-toast";
 import { useChatStore } from "../store/useChatStore.js";
@@ -9,7 +9,42 @@ export default function MessageInput() {
   const [isSending, setIsSending] = useState(false);
   const isSendingRef = useRef(false);
   const fileRef = useRef(null);
-  const { sendMessage } = useChatStore();
+  const isTypingRef = useRef(false);
+  const typingTimeoutRef = useRef(null);
+  const { sendMessage, sendTypingStart, sendTypingStop, selectedUser, selectedGroup } = useChatStore();
+
+  useEffect(() => {
+    return () => {
+      if (isTypingRef.current) {
+        sendTypingStop();
+        isTypingRef.current = false;
+      }
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    };
+  }, [selectedUser?._id, selectedGroup?._id, sendTypingStop]);
+
+  const handleInputChange = (e) => {
+    const val = e.target.value;
+    setText(val);
+
+    if (val.trim().length > 0) {
+      if (!isTypingRef.current) {
+        isTypingRef.current = true;
+        sendTypingStart();
+      }
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      typingTimeoutRef.current = setTimeout(() => {
+        sendTypingStop();
+        isTypingRef.current = false;
+      }, 2500);
+    } else {
+      if (isTypingRef.current) {
+        sendTypingStop();
+        isTypingRef.current = false;
+      }
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    }
+  };
 
   const handleImageChange = (e) => {
     const file = e.target.files?.[0];
@@ -31,6 +66,12 @@ export default function MessageInput() {
     if (isSendingRef.current) return;
     const trimmedText = text.trim();
     if (!trimmedText && !imagePreview) return;
+
+    if (isTypingRef.current) {
+      sendTypingStop();
+      isTypingRef.current = false;
+    }
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
 
     setIsSending(true);
     isSendingRef.current = true;
@@ -99,7 +140,7 @@ export default function MessageInput() {
             placeholder="Type a message..."
             className="w-full bg-transparent border-none outline-none text-sm text-base-content placeholder:text-base-content/40 py-1.5"
             value={text}
-            onChange={(e) => setText(e.target.value)}
+            onChange={handleInputChange}
           />
         </div>
 

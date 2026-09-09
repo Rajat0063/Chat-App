@@ -3,11 +3,11 @@ import { useState, useRef, useEffect } from "react";
 import { MoreVertical, X, Loader2, Camera } from "lucide-react";
 import { createPortal } from "react-dom";
 import { useAuthStore } from "../store/useAuthStore.js";
-import { useChatStore } from "../store/useChatStore.js";
+import { useChatStore, toIdStr } from "../store/useChatStore.js";
 import { useThemeStore } from "../store/useThemeStore.js";
 
 export default function ChatHeader() {
-  const { selectedUser, selectedGroup, setSelectedUser, setSelectedGroup, blockedUsers, toggleBlockUser, deleteConversation, leaveGroup, addGroupMembers, updateGroup, deleteGroupConversation, deleteGroup, users } = useChatStore();
+  const { selectedUser, selectedGroup, setSelectedUser, setSelectedGroup, blockedUsers, toggleBlockUser, deleteConversation, leaveGroup, addGroupMembers, updateGroup, deleteGroupConversation, deleteGroup, users, typingUsers } = useChatStore();
   const { onlineUsers, authUser } = useAuthStore();
   const { theme } = useThemeStore();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -28,9 +28,23 @@ export default function ChatHeader() {
   const [groupName, setGroupName] = useState(selectedGroup?.name || "");
   const [selectedMemberIds, setSelectedMemberIds] = useState([]);
   if (!selectedUser && !selectedGroup) return null;
-  const selectedUserId = selectedUser?._id?.toString();
-  const groupOwnerId = selectedGroup?.owner?._id?.toString() || selectedGroup?.owner?.toString();
-  const isGroupOwner = selectedGroup && authUser ? groupOwnerId === authUser._id?.toString() : false;
+  const selectedUserId = toIdStr(selectedUser?._id);
+  const selectedGroupId = toIdStr(selectedGroup?._id);
+  const authUserId = toIdStr(authUser?._id);
+
+  // Real-time typing indicators
+  const directTypers = (selectedUserId && typingUsers[selectedUserId]) || {};
+  const isDirectTyping = Boolean(directTypers[selectedUserId]);
+
+  const groupTypers = (selectedGroupId && typingUsers[selectedGroupId]) || {};
+  const groupTypingNames = Object.entries(groupTypers)
+    .filter(([uId]) => uId !== authUserId)
+    .map(([, info]) => info.userName)
+    .filter(Boolean);
+  const isGroupTyping = groupTypingNames.length > 0;
+
+  const groupOwnerId = toIdStr(selectedGroup?.owner?._id || selectedGroup?.owner);
+  const isGroupOwner = selectedGroup && authUser ? groupOwnerId === authUserId : false;
   const isBlocked = selectedUserId ? blockedUsers.includes(selectedUserId) : false;
 
   useEffect(() => {
@@ -212,7 +226,16 @@ export default function ChatHeader() {
                   {selectedUser.fullName}
                 </h3>
                 <p className="text-xs text-base-content/60 truncate flex items-center gap-1.5 font-medium">
-                  {onlineUsers.includes(selectedUserId) ? (
+                  {isDirectTyping ? (
+                    <span className="text-primary font-semibold flex items-center gap-1.5 transition-all">
+                      <span>typing</span>
+                      <span className="inline-flex items-center gap-0.5">
+                        <span className="size-1 rounded-full bg-primary animate-bounce [animation-delay:-0.3s]" />
+                        <span className="size-1 rounded-full bg-primary animate-bounce [animation-delay:-0.15s]" />
+                        <span className="size-1 rounded-full bg-primary animate-bounce" />
+                      </span>
+                    </span>
+                  ) : onlineUsers.includes(selectedUserId) ? (
                     <>
                       <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
                       <span className="text-emerald-500 font-semibold">Active now</span>
@@ -242,8 +265,25 @@ export default function ChatHeader() {
                 <h3 className="font-bold text-sm sm:text-base text-base-content truncate group-hover:text-primary transition-colors">
                   {selectedGroup.name}
                 </h3>
-                <p className="text-xs text-base-content/60 truncate font-medium">
-                  Group Room • {selectedGroup.members?.length || 0} members
+                <p className="text-xs text-base-content/60 truncate flex items-center gap-1.5 font-medium">
+                  {isGroupTyping ? (
+                    <span className="text-primary font-semibold flex items-center gap-1.5 transition-all">
+                      <span className="truncate max-w-[180px] sm:max-w-xs">
+                        {groupTypingNames.length === 1
+                          ? `${groupTypingNames[0]} is typing`
+                          : groupTypingNames.length === 2
+                          ? `${groupTypingNames[0]} and ${groupTypingNames[1]} are typing`
+                          : `${groupTypingNames[0]} and ${groupTypingNames.length - 1} others are typing`}
+                      </span>
+                      <span className="inline-flex items-center gap-0.5 flex-shrink-0">
+                        <span className="size-1 rounded-full bg-primary animate-bounce [animation-delay:-0.3s]" />
+                        <span className="size-1 rounded-full bg-primary animate-bounce [animation-delay:-0.15s]" />
+                        <span className="size-1 rounded-full bg-primary animate-bounce" />
+                      </span>
+                    </span>
+                  ) : (
+                    `Group Room • ${selectedGroup.members?.length || 0} members`
+                  )}
                 </p>
               </button>
             </>
