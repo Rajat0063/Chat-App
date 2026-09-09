@@ -6,11 +6,12 @@ import { useAuthStore } from "../store/useAuthStore.js";
 import SidebarSkeleton from "./skeletons/SidebarSkeleton.jsx";
 
 export default function Sidebar() {
-  const { getUsers, users, selectedUser, setSelectedUser, isUsersLoading, typingUsers } = useChatStore();
+  const { getUsers, users, selectedUser, setSelectedUser, isUsersLoading, typingUsers, unreadCounts, initGlobalSocketListeners } = useChatStore();
   const { getGroups, groups, setSelectedGroup, selectedGroup, createGroup } = useChatStore();
-  const { onlineUsers, authUser } = useAuthStore();
+  const { onlineUsers, authUser, socket } = useAuthStore();
 
   const [searchQuery, setSearchQuery] = useState("");
+  const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("all"); // 'all' | 'direct' | 'groups'
   const [showOnlineOnly, setShowOnlineOnly] = useState(false);
   const [isCreateGroupOpen, setIsCreateGroupOpen] = useState(false);
@@ -22,23 +23,33 @@ export default function Sidebar() {
 
   useEffect(() => { getUsers(); }, [getUsers]);
   useEffect(() => { getGroups(); }, [getGroups]);
+  useEffect(() => {
+    if (socket && initGlobalSocketListeners) initGlobalSocketListeners();
+  }, [socket, initGlobalSocketListeners]);
 
   const safeGroups = Array.isArray(groups) ? groups : [];
   const safeUsers = Array.isArray(users) ? users : [];
   const safeOnlineUsers = Array.isArray(onlineUsers) ? onlineUsers : [];
+  const counts = unreadCounts || {};
+  const directUnreadTotal = safeUsers.reduce((total, user) => total + (counts[user._id] || 0), 0);
+  const groupUnreadTotal = safeGroups.reduce((total, group) => total + (counts[group._id] || 0), 0);
+  const totalUnread = directUnreadTotal + groupUnreadTotal;
 
-  // Filter logic strictly by name as requested
   const trimmedSearch = searchQuery.trim().toLowerCase();
 
   const filteredUsers = safeUsers.filter((u) => {
     const matchesOnline = showOnlineOnly ? safeOnlineUsers.includes(u._id) : true;
-    const matchesSearch = !trimmedSearch || (u.fullName && u.fullName.toLowerCase().includes(trimmedSearch));
+    const matchesSearch = !trimmedSearch || u.fullName?.toLowerCase().includes(trimmedSearch)
+      || u.email?.toLowerCase().includes(trimmedSearch)
+      || u.about?.toLowerCase().includes(trimmedSearch);
     return matchesOnline && matchesSearch;
   });
 
   const filteredGroups = safeGroups.filter((g) => {
-    const matchesSearch = !trimmedSearch || (g.name && g.name.toLowerCase().includes(trimmedSearch));
-    return matchesSearch;
+    if (!trimmedSearch) return true;
+    return g.name?.toLowerCase().includes(trimmedSearch)
+      || g.description?.toLowerCase().includes(trimmedSearch)
+      || g.members?.some((member) => (member?.fullName || member?.name || "").toLowerCase().includes(trimmedSearch));
   });
 
   if (isUsersLoading) return <SidebarSkeleton />;
@@ -51,14 +62,27 @@ export default function Sidebar() {
           <div className="flex items-center gap-2.5">
             <div className="p-2 rounded-xl bg-primary/10 text-primary hidden md:flex items-center justify-center">
               <MessageSquare className="size-5" />
+              {totalUnread > 0 && <span className="absolute size-2.5 rounded-full bg-primary ring-2 ring-base-100" />}
             </div>
             <div>
-              <h2 className="font-bold text-base hidden md:block tracking-tight">Messages</h2>
+              <div className="flex items-center gap-1.5">
+                <h2 className="font-bold text-base hidden md:block tracking-tight">Messages</h2>
+                {totalUnread > 0 && <span className="badge badge-primary badge-xs font-bold rounded-full">{totalUnread > 99 ? "99+" : totalUnread}</span>}
+              </div>
               <p className="text-[11px] text-base-content/60 hidden md:block">
                 {safeOnlineUsers.length > 0 ? `${Math.max(0, safeOnlineUsers.length - 1)} online now` : "Workspace Chat"}
               </p>
             </div>
           </div>
+          <button
+            type="button"
+            onClick={() => setIsMobileSearchOpen((open) => !open)}
+            className={`btn btn-ghost btn-sm btn-circle md:hidden ${isMobileSearchOpen || searchQuery ? "text-primary bg-primary/10" : "text-base-content/70"}`}
+            title="Filter conversations"
+            aria-label="Filter conversations"
+          >
+            <Search className="size-4" />
+          </button>
           <button
             onClick={() => setIsCreateGroupOpen(true)}
             className="btn btn-primary btn-sm rounded-xl gap-1 shadow-sm hover:scale-[1.02] transition-transform w-full sm:w-auto"
@@ -70,12 +94,12 @@ export default function Sidebar() {
         </div>
 
         {/* Search Bar - Filter direct messages and group chats by name */}
-        <div className="space-y-1.5">
+        <div className={`space-y-1.5 ${isMobileSearchOpen || searchQuery ? "block" : "hidden md:block"}`}>
           <div className="relative">
             <Search className="absolute left-3 top-2.5 size-4 text-base-content/40 pointer-events-none" />
             <input
               type="text"
-              placeholder="Filter chats by name..."
+              placeholder="Search participant or group title..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               onKeyDown={(e) => {
@@ -121,19 +145,19 @@ export default function Sidebar() {
               onClick={() => setActiveTab("all")}
               className={`py-1 rounded-lg text-center transition-all ${activeTab === "all" ? "bg-base-100 font-semibold shadow-xs text-primary" : "text-base-content/70 hover:text-base-content"}`}
             >
-              All
+              All {trimmedSearch ? `(${filteredUsers.length + filteredGroups.length})` : ""} {totalUnread > 0 && <span className="badge badge-primary badge-xs">{totalUnread > 99 ? "99+" : totalUnread}</span>}
             </button>
             <button
               onClick={() => setActiveTab("direct")}
               className={`py-1 rounded-lg text-center transition-all ${activeTab === "direct" ? "bg-base-100 font-semibold shadow-xs text-primary" : "text-base-content/70 hover:text-base-content"}`}
             >
-              Direct
+              Direct {trimmedSearch ? `(${filteredUsers.length})` : ""} {directUnreadTotal > 0 && <span className="badge badge-primary badge-xs">{directUnreadTotal > 99 ? "99+" : directUnreadTotal}</span>}
             </button>
             <button
               onClick={() => setActiveTab("groups")}
               className={`py-1 rounded-lg text-center transition-all ${activeTab === "groups" ? "bg-base-100 font-semibold shadow-xs text-primary" : "text-base-content/70 hover:text-base-content"}`}
             >
-              Groups
+              Groups {trimmedSearch ? `(${filteredGroups.length})` : ""} {groupUnreadTotal > 0 && <span className="badge badge-primary badge-xs">{groupUnreadTotal > 99 ? "99+" : groupUnreadTotal}</span>}
             </button>
           </div>
 
@@ -170,6 +194,7 @@ export default function Sidebar() {
               const isSelected = toIdStr(selectedGroup?._id) === gId;
               const gTypers = (gId && typingUsers[gId]) || {};
               const gTypingCount = Object.keys(gTypers).length;
+              const unreadCount = counts[gId] || 0;
               return (
                 <button
                   key={g._id}
@@ -177,18 +202,19 @@ export default function Sidebar() {
                   className={`w-full p-2.5 flex items-center gap-3 rounded-xl transition-all duration-150 text-left relative ${
                     isSelected
                       ? "bg-primary/10 text-primary font-semibold border-l-4 border-primary shadow-xs"
+                      : unreadCount > 0
+                      ? "bg-primary/5 hover:bg-primary/10 text-base-content border-l-2 border-primary/70 font-medium"
                       : "hover:bg-base-200/70 text-base-content/80"
                   }`}
                 >
                   <div className="relative size-11 sm:size-12 rounded-xl overflow-hidden bg-base-200 flex-shrink-0 border border-base-300">
                     <img src={g.avatar || "/avatar.png"} alt={g.name} className="w-full h-full object-cover" />
+                    {unreadCount > 0 && <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full bg-primary text-primary-content text-[10px] font-bold flex items-center justify-center md:hidden">{unreadCount > 99 ? "99+" : unreadCount}</span>}
                   </div>
                   <div className="hidden md:flex flex-col min-w-0 flex-1">
                     <div className="flex items-center justify-between gap-1">
-                      <span className="font-semibold text-sm truncate">{g.name}</span>
-                      <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-base-300 text-base-content/70">
-                        {g.members?.length || 0}m
-                      </span>
+                      <span className={`font-semibold text-sm truncate ${unreadCount > 0 ? "font-bold text-base-content" : ""}`}>{g.name}</span>
+                      {unreadCount > 0 ? <span className="badge badge-primary badge-sm rounded-full">{unreadCount > 99 ? "99+" : unreadCount}</span> : <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-base-300 text-base-content/70">{g.members?.length || 0}m</span>}
                     </div>
                     {gTypingCount > 0 ? (
                       <p className="text-xs text-primary font-medium truncate flex items-center gap-1">
@@ -196,7 +222,7 @@ export default function Sidebar() {
                       </p>
                     ) : (
                       <p className="text-xs text-base-content/60 truncate font-normal">
-                        {g.description || "Group discussion"}
+                        {unreadCount > 0 ? `${unreadCount} new message${unreadCount > 1 ? "s" : ""}` : g.description || "Group discussion"}
                       </p>
                     )}
                   </div>
@@ -216,6 +242,7 @@ export default function Sidebar() {
               const uId = toIdStr(u._id);
               const isSelected = toIdStr(selectedUser?._id) === uId;
               const isOnline = safeOnlineUsers.map(toIdStr).includes(uId);
+              const unreadCount = counts[uId] || 0;
               const uTypers = (uId && typingUsers[uId]) || {};
               const isUserTyping = Boolean(uTypers[uId]) || Object.keys(uTypers).some((id) => id !== toIdStr(authUser?._id));
               return (
@@ -225,6 +252,8 @@ export default function Sidebar() {
                   className={`w-full p-2.5 flex items-center gap-3 rounded-xl transition-all duration-150 text-left relative ${
                     isSelected
                       ? "bg-primary/10 text-primary font-semibold border-l-4 border-primary shadow-xs"
+                      : unreadCount > 0
+                      ? "bg-primary/5 hover:bg-primary/10 text-base-content border-l-2 border-primary/70 font-medium"
                       : "hover:bg-base-200/70 text-base-content/80"
                   }`}
                 >
@@ -233,13 +262,15 @@ export default function Sidebar() {
                     {isOnline && (
                       <span className="absolute bottom-0 right-0 size-3 bg-emerald-500 rounded-full ring-2 ring-base-100" />
                     )}
+                    {unreadCount > 0 && <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full bg-primary text-primary-content text-[10px] font-bold flex items-center justify-center md:hidden">{unreadCount > 99 ? "99+" : unreadCount}</span>}
                   </div>
                   <div className="hidden md:flex flex-col min-w-0 flex-1">
                     <div className="flex items-center justify-between gap-1">
-                      <span className="font-semibold text-sm truncate">{u.fullName}</span>
+                      <span className={`font-semibold text-sm truncate ${unreadCount > 0 ? "font-bold text-base-content" : ""}`}>{u.fullName}</span>
                       {isOnline && (
                         <span className="text-[10px] text-emerald-500 font-medium">Online</span>
                       )}
+                      {unreadCount > 0 && <span className="badge badge-primary badge-sm rounded-full">{unreadCount > 99 ? "99+" : unreadCount}</span>}
                     </div>
                     {isUserTyping ? (
                       <p className="text-xs text-primary font-medium truncate flex items-center gap-1">
@@ -247,7 +278,7 @@ export default function Sidebar() {
                       </p>
                     ) : (
                       <p className="text-xs text-base-content/60 truncate font-normal">
-                        {u.about || (isOnline ? "Active now" : "Offline")}
+                        {unreadCount > 0 ? `${unreadCount} new message${unreadCount > 1 ? "s" : ""}` : u.about || (isOnline ? "Active now" : "Offline")}
                       </p>
                     )}
                   </div>

@@ -19,7 +19,7 @@ const initialUser = getStoredUser();
 
 export const useAuthStore = create((set, get) => ({
   authUser: initialUser,
-  isCheckingAuth: false,
+  isCheckingAuth: typeof window !== "undefined" ? !!localStorage.getItem("chat-token") : false,
   isSigningUp: false,
   isLoggingIn: false,
   isUpdatingProfile: false,
@@ -28,6 +28,10 @@ export const useAuthStore = create((set, get) => ({
   socket: null,
 
   checkAuth: async () => {
+    if (typeof window !== "undefined" && !localStorage.getItem("chat-token")) {
+      set({ authUser: null, isCheckingAuth: false });
+      return;
+    }
     try {
       const res = await axiosInstance.get("/auth/check");
       if (res.data && typeof res.data === "object" && res.data._id) {
@@ -81,10 +85,13 @@ export const useAuthStore = create((set, get) => ({
 
   resendOtp: async (email) => {
     try {
-      await axiosInstance.post("/auth/resend-otp", { email });
-      toast.success("New code sent.");
+      const res = await axiosInstance.post("/auth/resend-otp", { email });
+      const devOtp = res?.data?.devOtp;
+      toast.success(devOtp ? `Verification code: ${devOtp}` : "New code sent.", { duration: devOtp ? 8000 : 4000 });
+      return { ok: true, devOtp };
     } catch (err) {
       toast.error(err?.response?.data?.message || "Could not resend code");
+      return { ok: false };
     }
   },
 
@@ -102,10 +109,15 @@ export const useAuthStore = create((set, get) => ({
       const msg = err?.response?.data?.message;
       if (err?.response?.data?.needsVerification) {
         toast.error("Please verify your email first.");
-        return { ok: false, needsVerification: true, email: err.response.data.email };
+        return {
+          ok: false,
+          needsVerification: true,
+          email: err.response.data.email,
+          devOtp: err.response.data.devOtp,
+        };
       }
       toast.error(msg || "Login failed");
-      return { ok: false };
+      return { ok: false, userNotFound: err?.response?.data?.userNotFound };
     } finally { set({ isLoggingIn: false }); }
   },
 
@@ -193,6 +205,7 @@ export const useAuthStore = create((set, get) => ({
     const s = io(SOCKET_BASE_URL || undefined, { query: { userId: authUser._id }, withCredentials: true });
     s.connect();
     set({ socket: s });
+    useChatStore.getState().initGlobalSocketListeners?.();
     s.on("connect", () => {
       const chatState = useChatStore.getState();
       if (chatState.selectedUser) {

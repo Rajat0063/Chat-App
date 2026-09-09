@@ -29,7 +29,18 @@ export const getGroupsForUser = async (req, res) => {
     const groups = await Group.find({ members: me })
       .populate("members", "fullName profilePic")
       .populate("owner", "fullName profilePic");
-    res.json(groups);
+    const groupIds = groups.map((group) => group._id);
+    const unreadGroupMessages = await Message.find({
+      groupId: { $in: groupIds },
+      senderId: { $ne: me },
+      seenBy: { $nin: [me] },
+    });
+    const unreadCounts = {};
+    unreadGroupMessages.forEach((message) => {
+      const groupId = message.groupId?.toString();
+      if (groupId) unreadCounts[groupId] = (unreadCounts[groupId] || 0) + 1;
+    });
+    res.json({ groups, unreadCounts });
   } catch (err) {
     console.log("getGroupsForUser:", err.message);
     res.status(500).json({ message: "Internal server error" });
@@ -44,20 +55,25 @@ export const getGroupMessages = async (req, res) => {
     if (!group) return res.status(404).json({ message: "Group not found" });
     if (!group.members.some((m) => m.equals(me))) return res.status(403).json({ message: "Not a group member" });
 
-    // Mark unread messages in this group as read by this user
+    const now = new Date();
     await Message.updateMany(
       { groupId, senderId: { $ne: me } },
-      { $addToSet: { readBy: me } }
+      { $addToSet: { readBy: me, seenBy: me } }
     );
 
     // Notify group members
     group.members.forEach((memberId) => {
       const sids = getReceiverSocketIds(memberId.toString());
-      sids.forEach((sid) => io.to(sid).emit("groupMessagesRead", { groupId, readerId: me.toString() }));
+      sids.forEach((sid) => io.to(sid).emit("groupMessagesRead", {
+        groupId,
+        readerId: me.toString(),
+        seenAt: now,
+      }));
     });
 
     const messages = await Message.find({ groupId, deletedFor: { $nin: [me] } })
       .populate("senderId", "fullName profilePic")
+      .populate("pinnedBy", "fullName profilePic")
       .sort({ createdAt: 1 });
     res.json(messages);
   } catch (err) {
@@ -72,20 +88,62 @@ export const markGroupMessagesAsRead = async (req, res) => {
     const me = req.user._id;
     const group = await Group.findById(groupId);
     if (!group) return res.status(404).json({ message: "Group not found" });
+    if (!group.members.some((memberId) => memberId.equals(me))) {
+      return res.status(403).json({ message: "Not a group member" });
+    }
 
+    const now = new Date();
     await Message.updateMany(
       { groupId, senderId: { $ne: me } },
-      { $addToSet: { readBy: me } }
+      { $addToSet: { readBy: me, seenBy: me } }
     );
 
     group.members.forEach((memberId) => {
       const sids = getReceiverSocketIds(memberId.toString());
-      sids.forEach((sid) => io.to(sid).emit("groupMessagesRead", { groupId, readerId: me.toString() }));
+      sids.forEach((sid) => io.to(sid).emit("groupMessagesRead", {
+        groupId,
+        readerId: me.toString(),
+        seenAt: now,
+      }));
     });
 
     res.json({ success: true });
   } catch (err) {
     console.log("markGroupMessagesAsRead:", err.message);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+export const markGroupMessagesSeen = async (req, res) => {
+  try {
+    const { id: groupId } = req.params;
+    const me = req.user._id;
+    const group = await Group.findById(groupId).select("members");
+    if (!group) return res.status(404).json({ message: "Group not found" });
+    if (!group.members.some((memberId) => memberId.equals(me))) {
+      return res.status(403).json({ message: "Not a group member" });
+    }
+
+    const seenAt = new Date();
+    await Message.updateMany(
+      { groupId, senderId: { $ne: me } },
+      { $addToSet: { seenBy: me, readBy: me } }
+    );
+
+    group.members.forEach((memberId) => {
+      if (memberId.equals(me)) return;
+      getReceiverSocketIds(memberId.toString()).forEach((sid) => {
+        io.to(sid).emit("groupMessagesSeen", {
+          groupId: groupId.toString(),
+          seenBy: me.toString(),
+          seenAt,
+        });
+      });
+    });
+
+    res.json({ success: true, groupId, seenAt });
+  } catch (err) {
+    console.log("markGroupMessagesSeen:", err.message);
     res.status(500).json({ message: "Internal server error" });
   }
 };

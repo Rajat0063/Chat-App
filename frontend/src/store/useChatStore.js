@@ -84,6 +84,7 @@ export const useChatStore = create((set, get) => ({
   isChatSearchOpen: false,
   chatSearchQuery: "",
   chatSearchMatchIndex: 0,
+  unreadCounts: {},
   typingUsers: {}, // { [conversationId]: { [userId]: { userName, time } } }
 
   setChatSearchOpen: (isOpen) => set({ isChatSearchOpen: isOpen }),
@@ -107,6 +108,12 @@ export const useChatStore = create((set, get) => ({
     return { chatSearchMatchIndex: (state.chatSearchMatchIndex - 1 + matchCount) % matchCount };
   }),
   closeChatSearch: () => set({ isChatSearchOpen: false, chatSearchQuery: "", chatSearchMatchIndex: 0 }),
+  setUnreadCount: (id, count) => set((state) => ({
+    unreadCounts: { ...state.unreadCounts, [toIdStr(id)]: Math.max(0, count) },
+  })),
+  clearUnreadCount: (id) => set((state) => ({
+    unreadCounts: { ...state.unreadCounts, [toIdStr(id)]: 0 },
+  })),
 
   removeTypingUser: (convId, uId) => {
     set((state) => {
@@ -207,10 +214,12 @@ export const useChatStore = create((set, get) => ({
       const nextUsers = Array.isArray(res.data?.users) ? res.data.users : (Array.isArray(res.data) ? res.data : []);
       const nextBlockedUsers = (Array.isArray(res.data?.blockedUsers) ? res.data.blockedUsers : []).map((id) => id.toString());
       const currentSelectedUser = get().selectedUser;
+      const serverUnread = res.data?.unreadCounts || {};
 
       set({
         users: nextUsers,
         blockedUsers: nextBlockedUsers,
+        unreadCounts: { ...get().unreadCounts, ...serverUnread },
         selectedUser: currentSelectedUser && nextUsers.some((u) => u._id === currentSelectedUser._id)
           ? currentSelectedUser
           : nextUsers.length ? nextUsers[0] : null,
@@ -225,7 +234,10 @@ export const useChatStore = create((set, get) => ({
     try {
       const res = await axiosInstance.get("/groups");
       const groupsData = Array.isArray(res.data) ? res.data : (Array.isArray(res.data?.groups) ? res.data.groups : []);
-      set({ groups: groupsData });
+      set((state) => ({
+        groups: groupsData,
+        unreadCounts: { ...state.unreadCounts, ...(res.data?.unreadCounts || {}) },
+      }));
     } catch (err) {
       toast.error(err?.response?.data?.message || "Failed to load groups");
       set({ groups: [] });
@@ -364,6 +376,7 @@ export const useChatStore = create((set, get) => ({
 
   markMessagesAsRead: async (userId) => {
     if (!userId) return;
+    get().clearUnreadCount(userId);
     const socket = useAuthStore.getState().socket;
     const authUser = useAuthStore.getState().authUser;
     const cleanUserId = toIdStr(userId);
@@ -379,6 +392,7 @@ export const useChatStore = create((set, get) => ({
 
   markGroupMessagesAsRead: async (groupId) => {
     if (!groupId) return;
+    get().clearUnreadCount(groupId);
     const socket = useAuthStore.getState().socket;
     const authUser = useAuthStore.getState().authUser;
     const cleanGroupId = toIdStr(groupId);
@@ -412,6 +426,8 @@ export const useChatStore = create((set, get) => ({
       const isFromMe = msgSenderId === myId && msgReceiverId === sSelectedId;
 
       if (!isFromSelected && !isFromMe) return;
+
+      if (isFromSelected) get().clearUnreadCount(sSelectedId);
 
       // Clear sender from typing indicator upon message arrival
       if (msgSenderId && sSelectedId) {
@@ -492,7 +508,12 @@ export const useChatStore = create((set, get) => ({
       if (!selected) return;
       const currentGroupId = toIdStr(selected._id);
       const msgGroupId = toIdStr(newMessage.groupId);
+      const msgSenderId = toIdStr(newMessage.senderId);
       if (currentGroupId !== msgGroupId) return;
+
+      if (msgSenderId !== toIdStr(useAuthStore.getState().authUser?._id)) {
+        get().clearUnreadCount(currentGroupId);
+      }
 
       // Clear sender from typing indicator upon message arrival
       if (msgSenderId && currentGroupId) {
@@ -558,6 +579,7 @@ export const useChatStore = create((set, get) => ({
     set({ selectedUser: user, selectedGroup: null });
     if (user) {
       const uId = toIdStr(user._id);
+      get().clearUnreadCount(uId);
       if (socket && socket.connected) {
         socket.emit("enterChat", { type: "direct", id: uId });
       }
@@ -574,6 +596,7 @@ export const useChatStore = create((set, get) => ({
     set({ selectedGroup: group, selectedUser: null });
     if (group) {
       const gId = toIdStr(group._id);
+      get().clearUnreadCount(gId);
       if (socket && socket.connected) {
         socket.emit("enterChat", { type: "group", id: gId });
       }
