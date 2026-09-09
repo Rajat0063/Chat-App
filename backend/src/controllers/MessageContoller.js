@@ -1,6 +1,6 @@
 import User from "../models/UserModel.js";
 import Message from "../models/MessageModel.js";
-import { io, getReceiverSocketId, getReceiverSocketIds } from "../lib/socket.js";
+import { io, getReceiverSocketId, getReceiverSocketIds, isUserInConversation } from "../lib/socket.js";
 
 export const getUsersForSidebar = async (req, res) => {
   try {
@@ -116,10 +116,27 @@ export const sendMessage = async (req, res) => {
       return res.status(403).json({ message: "You have blocked this user." });
     }
 
-    const receiverSocketIds = getReceiverSocketIds(receiverId.toString());
+    const sId = senderId.toString();
+    const rId = receiverId.toString();
+    const receiverSocketIds = getReceiverSocketIds(rId);
     const isReceiverOnline = receiverSocketIds.length > 0;
-    const status = isReceiverOnline ? "delivered" : "sent";
-    const deliveredAt = isReceiverOnline ? new Date() : null;
+    const isReceiverInChat = isUserInConversation(rId, sId, "direct");
+
+    const now = new Date();
+    let status = "sent";
+    let deliveredAt = null;
+    let readAt = null;
+    const readBy = [senderId];
+
+    if (isReceiverInChat) {
+      status = "read";
+      deliveredAt = now;
+      readAt = now;
+      readBy.push(receiverId);
+    } else if (isReceiverOnline) {
+      status = "delivered";
+      deliveredAt = now;
+    }
 
     const newMessage = await Message.create({
       senderId,
@@ -128,7 +145,8 @@ export const sendMessage = async (req, res) => {
       image: image || "",
       status,
       deliveredAt,
-      readBy: [senderId],
+      readAt,
+      readBy,
     });
 
     receiverSocketIds.forEach((sid) => {

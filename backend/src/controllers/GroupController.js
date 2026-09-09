@@ -1,7 +1,7 @@
 import Group from "../models/GroupModel.js";
 import Message from "../models/MessageModel.js";
 import User from "../models/UserModel.js";
-import { io, getReceiverSocketId, getReceiverSocketIds } from "../lib/socket.js";
+import { io, getReceiverSocketId, getReceiverSocketIds, isUserInConversation } from "../lib/socket.js";
 
 export const createGroup = async (req, res) => {
   try {
@@ -176,9 +176,32 @@ export const sendGroupMessage = async (req, res) => {
     if (!group.members.some((m) => m.equals(senderId))) return res.status(403).json({ message: "Not a group member" });
 
     const otherMembers = group.members.filter((m) => !m.equals(senderId));
-    const anyOtherOnline = otherMembers.some((m) => getReceiverSocketIds(m.toString()).length > 0);
-    const status = anyOtherOnline ? "delivered" : "sent";
-    const deliveredAt = anyOtherOnline ? new Date() : null;
+    const now = new Date();
+    const readBy = [senderId];
+    let anyOtherOnline = false;
+
+    otherMembers.forEach((m) => {
+      const mId = (m?._id || m).toString();
+      if (getReceiverSocketIds(mId).length > 0) {
+        anyOtherOnline = true;
+      }
+      if (isUserInConversation(mId, groupId.toString(), "group")) {
+        readBy.push(m);
+      }
+    });
+
+    let status = "sent";
+    let deliveredAt = null;
+    let readAt = null;
+
+    if (readBy.length > 1) {
+      status = "read";
+      deliveredAt = now;
+      readAt = now;
+    } else if (anyOtherOnline) {
+      status = "delivered";
+      deliveredAt = now;
+    }
 
     let newMessage = await Message.create({
       senderId,
@@ -188,7 +211,8 @@ export const sendGroupMessage = async (req, res) => {
       groupId,
       status,
       deliveredAt,
-      readBy: [senderId],
+      readAt,
+      readBy,
     });
     newMessage = await newMessage.populate("senderId", "fullName profilePic");
 

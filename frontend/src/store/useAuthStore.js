@@ -17,11 +17,6 @@ export const useAuthStore = create((set, get) => ({
   socket: null,
 
   checkAuth: async () => {
-    if (!localStorage.getItem("chat-token")) {
-      set({ authUser: null, isCheckingAuth: false });
-      return;
-    }
-
     try {
       const res = await axiosInstance.get("/auth/check");
       if (res.data && typeof res.data === "object" && res.data._id) {
@@ -43,8 +38,12 @@ export const useAuthStore = create((set, get) => ({
     set({ isSigningUp: true });
     try {
       const res = await axiosInstance.post("/auth/signup", data);
-      toast.success("Account created — check your email or server log for verification code.");
-      return { ok: true, email: res.data.email };
+      if (res.data.devOtp) {
+        toast.success(`Account created! Code: ${res.data.devOtp}`, { duration: 8000 });
+      } else {
+        toast.success("Account created — check your email for verification code.");
+      }
+      return { ok: true, email: res.data.email, devOtp: res.data.devOtp };
     } catch (err) {
       toast.error(err?.response?.data?.message || "Signup failed");
       return { ok: false };
@@ -173,6 +172,14 @@ export const useAuthStore = create((set, get) => ({
     const s = io(SOCKET_BASE_URL || undefined, { query: { userId: authUser._id }, withCredentials: true });
     s.connect();
     set({ socket: s });
+    s.on("connect", () => {
+      const chatState = useChatStore.getState();
+      if (chatState.selectedUser) {
+        s.emit("enterChat", { type: "direct", id: chatState.selectedUser._id?.toString() });
+      } else if (chatState.selectedGroup) {
+        s.emit("enterChat", { type: "group", id: chatState.selectedGroup._id?.toString() });
+      }
+    });
     s.on("getOnlineUsers", (ids) => set({ onlineUsers: ids }));
     s.off("newGroup");
     s.on("newGroup", (group) => {

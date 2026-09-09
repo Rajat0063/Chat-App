@@ -5,10 +5,15 @@ export class MockId {
   constructor(id) {
     if (id instanceof MockId) {
       this.val = id.val;
-    } else if (id && typeof id === "object" && id.toString) {
-      this.val = id.toString();
+    } else if (id && typeof id === "object" && id._id) {
+      const inner = id._id;
+      this.val = inner instanceof MockId ? inner.val : String(inner);
     } else if (typeof id === "string" && id.length > 0) {
       this.val = id;
+    } else if (id && typeof id === "object" && typeof id.toString === "function" && id.toString() !== "[object Object]") {
+      this.val = id.toString();
+    } else if (!id) {
+      this.val = "";
     } else {
       this.val = "mock_" + Math.random().toString(36).substring(2, 11) + Date.now().toString(36);
     }
@@ -19,9 +24,21 @@ export class MockId {
   }
 
   equals(other) {
-    if (!other) return false;
-    const otherStr = other.toString ? other.toString() : String(other);
-    return this.val === otherStr;
+    if (other === null || other === undefined) return false;
+    let otherStr;
+    if (other instanceof MockId) {
+      otherStr = other.val;
+    } else if (other && typeof other === "object" && other._id) {
+      const inner = other._id;
+      otherStr = inner instanceof MockId ? inner.val : String(inner);
+    } else if (typeof other === "string") {
+      otherStr = other;
+    } else if (typeof other?.toString === "function" && other.toString() !== "[object Object]") {
+      otherStr = other.toString();
+    } else {
+      otherStr = String(other);
+    }
+    return Boolean(this.val && otherStr && this.val === otherStr);
   }
 
   toJSON() {
@@ -29,7 +46,22 @@ export class MockId {
   }
 }
 
-export const toId = (val) => (val instanceof MockId ? val : new MockId(val));
+export const toId = (val) => {
+  if (val === null || val === undefined) return null;
+  if (val instanceof MockId) return val;
+  if (val && typeof val === "object" && val._id) return toId(val._id);
+  return new MockId(val);
+};
+
+export const idEquals = (a, b) => {
+  if (a === null && b === null) return true;
+  if (a === undefined && b === undefined) return true;
+  if (a === null || a === undefined || b === null || b === undefined) return false;
+  const idA = toId(a);
+  const idB = toId(b);
+  if (!idA || !idB) return false;
+  return idA.equals(idB);
+};
 
 // Pre-generated bcrypt hashes for password "123456"
 const DEFAULT_HASHED_PASS = "$2a$10$wT8m9M3.a2k8aJgq8vK.veaYF0eK7DqYgB6f5mCgH4E2a1b3c4d5e";
@@ -455,11 +487,12 @@ export const createMemoryModel = (collectionName) => {
           }
           if (update.$addToSet) {
             for (const [key, val] of Object.entries(update.$addToSet)) {
-              if (Array.isArray(item[key])) {
-                const valId = toId(val);
-                if (!item[key].some((k) => toId(k).equals(valId))) {
-                  item[key].push(valId);
-                }
+              if (!Array.isArray(item[key])) {
+                item[key] = [];
+              }
+              const valId = toId(val);
+              if (valId && !item[key].some((k) => idEquals(k, valId))) {
+                item[key].push(valId);
               }
             }
           }
@@ -496,35 +529,35 @@ function matchQuery(item, query) {
     if (val && typeof val === "object" && !val._id && !(val instanceof Date) && !(val instanceof MockId)) {
       // Operator check
       if ("$ne" in val) {
-        if (typeof val.$ne === "string" && !val.$ne.startsWith("6600") && !val.$ne.startsWith("mock_")) {
-          if (itemVal === val.$ne) return false;
+        const neVal = val.$ne;
+        if (typeof neVal === "string" && !neVal.startsWith("6600") && !neVal.startsWith("mock_")) {
+          if (itemVal === neVal) return false;
         } else {
-          const neId = toId(val.$ne);
-          if (itemVal && (itemVal.equals ? itemVal.equals(neId) : itemVal === val.$ne || (itemVal?.toString && itemVal.toString() === neId.toString()))) return false;
+          if (idEquals(itemVal, neVal)) return false;
         }
       }
       if ("$nin" in val && Array.isArray(val.$nin)) {
         if (Array.isArray(itemVal)) {
-          if (val.$nin.some((v) => itemVal.some((iv) => toId(iv).equals(toId(v))))) return false;
+          if (val.$nin.some((v) => itemVal.some((iv) => idEquals(iv, v)))) return false;
         } else {
-          if (val.$nin.some((v) => toId(itemVal).equals(toId(v)))) return false;
+          if (val.$nin.some((v) => idEquals(itemVal, v))) return false;
         }
       }
       if ("$all" in val && Array.isArray(val.$all)) {
         if (!Array.isArray(itemVal)) return false;
-        if (!val.$all.every((v) => itemVal.some((iv) => toId(iv).equals(toId(v))))) return false;
+        if (!val.$all.every((v) => itemVal.some((iv) => idEquals(iv, v)))) return false;
       }
       if ("$in" in val && Array.isArray(val.$in)) {
-        if (!val.$in.some((v) => toId(itemVal).equals(toId(v)))) return false;
+        if (!val.$in.some((v) => idEquals(itemVal, v))) return false;
       }
       continue;
     }
 
     // Direct comparison
     if (key === "_id" || key === "senderId" || key === "receiverId" || key === "groupId" || key === "owner") {
-      if (!toId(itemVal).equals(toId(val))) return false;
+      if (!idEquals(itemVal, val)) return false;
     } else if (key === "members" && Array.isArray(itemVal)) {
-      if (!itemVal.some((m) => toId(m).equals(toId(val)))) return false;
+      if (!itemVal.some((m) => idEquals(m, val))) return false;
     } else {
       if (itemVal !== val) return false;
     }

@@ -3,7 +3,7 @@ import { MessageSquare, Sparkles, Check, CheckCheck, Clock } from "lucide-react"
 import ChatHeader from "./ChatHeader.jsx";
 import MessageInput from "./MessageInput.jsx";
 import MessageSkeleton from "./skeletons/MessageSkeleton.jsx";
-import { useChatStore } from "../store/useChatStore.js";
+import { useChatStore, toIdStr } from "../store/useChatStore.js";
 import { useAuthStore } from "../store/useAuthStore.js";
 import { formatMessageTime } from "../lib/utils.js";
 
@@ -25,16 +25,42 @@ export default function ChatContainer() {
   const endRef = useRef(null);
 
   useEffect(() => {
+    const socket = useAuthStore.getState().socket;
+
     if (selectedGroup) {
-      getGroupMessages(selectedGroup._id);
+      const gId = toIdStr(selectedGroup._id);
+      if (socket && socket.connected) {
+        socket.emit("enterChat", { type: "group", id: gId });
+      }
+      getGroupMessages(gId);
       subscribeToGroupMessages();
-      return () => unsubscribeFromMessages();
+      markGroupMessagesAsRead(gId);
+
+      return () => {
+        if (socket && socket.connected) {
+          socket.emit("leaveChat");
+        }
+        unsubscribeFromMessages();
+      };
     }
-    if (!selectedUser) return;
-    getMessages(selectedUser._id);
-    subscribeToMessages();
-    return () => unsubscribeFromMessages();
-  }, [selectedUser, selectedGroup, getMessages, getGroupMessages, subscribeToMessages, subscribeToGroupMessages, unsubscribeFromMessages]);
+
+    if (selectedUser) {
+      const uId = toIdStr(selectedUser._id);
+      if (socket && socket.connected) {
+        socket.emit("enterChat", { type: "direct", id: uId });
+      }
+      getMessages(uId);
+      subscribeToMessages();
+      markMessagesAsRead(uId);
+
+      return () => {
+        if (socket && socket.connected) {
+          socket.emit("leaveChat");
+        }
+        unsubscribeFromMessages();
+      };
+    }
+  }, [selectedUser?._id, selectedGroup?._id]);
 
   useEffect(() => {
     if (endRef.current && messages) endRef.current.scrollIntoView({ behavior: "smooth" });
@@ -43,25 +69,30 @@ export default function ChatContainer() {
   // Real-time mark-as-read when new messages arrive while viewing this conversation
   useEffect(() => {
     if (!messages?.length) return;
+    const myId = toIdStr(authUser?._id);
+    if (!myId) return;
+
     if (selectedUser) {
+      const otherId = toIdStr(selectedUser._id);
       const hasUnread = messages.some((m) => {
-        const sender = (m.senderId?._id || m.senderId)?.toString();
-        return sender === selectedUser._id.toString() && m.status !== "read";
+        const sender = toIdStr(m.senderId);
+        return sender === otherId && m.status !== "read";
       });
       if (hasUnread) {
-        markMessagesAsRead(selectedUser._id);
+        markMessagesAsRead(otherId);
       }
-    } else if (selectedGroup && authUser) {
+    } else if (selectedGroup) {
+      const gId = toIdStr(selectedGroup._id);
       const hasUnreadGroup = messages.some((m) => {
-        const sender = (m.senderId?._id || m.senderId)?.toString();
-        const readBy = (m.readBy || []).map((id) => (id?._id || id)?.toString());
-        return sender !== authUser._id.toString() && !readBy.includes(authUser._id.toString());
+        const sender = toIdStr(m.senderId);
+        const readBy = (m.readBy || []).map(toIdStr);
+        return sender !== myId && !readBy.includes(myId);
       });
       if (hasUnreadGroup) {
-        markGroupMessagesAsRead(selectedGroup._id);
+        markGroupMessagesAsRead(gId);
       }
     }
-  }, [messages, selectedUser, selectedGroup, authUser, markMessagesAsRead, markGroupMessagesAsRead]);
+  }, [messages, selectedUser?._id, selectedGroup?._id, authUser?._id]);
 
   if (isMessagesLoading) {
     return (
@@ -76,6 +107,7 @@ export default function ChatContainer() {
   }
 
   const messageList = Array.isArray(messages) ? messages : [];
+  const myId = toIdStr(authUser?._id);
 
   const renderStatusIndicator = (m) => {
     if (m.isSending) {
@@ -123,20 +155,17 @@ export default function ChatContainer() {
     }
 
     // Group chat
-    const readByList = Array.isArray(m.readBy) ? m.readBy : [];
-    const otherReadCount = readByList.filter((id) => {
-      const idStr = (id?._id || id)?.toString();
-      return idStr && authUser && idStr !== authUser._id.toString();
-    }).length;
+    const readByList = (Array.isArray(m.readBy) ? m.readBy : []).map(toIdStr);
+    const otherReadCount = readByList.filter((idStr) => idStr && myId && idStr !== myId).length;
 
-    if (otherReadCount > 0) {
+    if (m.status === "read" || otherReadCount > 0) {
       return (
         <span
           className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-sky-500"
           title={`Read by ${otherReadCount} group member${otherReadCount > 1 ? "s" : ""}`}
         >
           <CheckCheck className="size-3.5 stroke-[2.5]" />
-          <span>Read ({otherReadCount})</span>
+          <span>Read{otherReadCount > 0 ? ` (${otherReadCount})` : ""}</span>
         </span>
       );
     }
@@ -183,9 +212,9 @@ export default function ChatContainer() {
           </div>
         ) : (
           messageList.map((m) => {
-            const mine = m.senderId === authUser._id || m.senderId?._id === authUser._id;
+            const mine = toIdStr(m.senderId) === myId;
             const senderPhoto = mine
-              ? authUser.profilePic || "/avatar.png"
+              ? authUser?.profilePic || "/avatar.png"
               : selectedGroup
                 ? (m.senderId?.profilePic || "/avatar.png")
                 : (selectedUser?.profilePic || "/avatar.png");
@@ -197,7 +226,7 @@ export default function ChatContainer() {
                 : (selectedUser?.fullName || "User");
 
             return (
-              <div key={m._id} className={`chat ${mine ? "chat-end" : "chat-start"} animate-in fade-in duration-200`}>
+              <div key={m._id || m.clientTempId} className={`chat ${mine ? "chat-end" : "chat-start"} animate-in fade-in duration-200`}>
                 <div className="chat-image avatar">
                   <div className="size-9 rounded-full border border-base-300 overflow-hidden shadow-xs">
                     <img src={senderPhoto} alt={senderName} className="object-cover w-full h-full" />
