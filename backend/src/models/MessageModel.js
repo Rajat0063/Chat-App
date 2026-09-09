@@ -1,5 +1,5 @@
 import mongoose from "mongoose";
-import { createBridgeModel } from "./modelBridge.js";
+import { createBridgeModel } from "./ModelBridge.js";
 import { createMemoryModel } from "../lib/memoryStore.js";
 
 const messageSchema = new mongoose.Schema(

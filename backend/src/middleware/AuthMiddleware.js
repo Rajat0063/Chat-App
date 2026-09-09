@@ -6,7 +6,7 @@ export const protectRoute = async (req, res, next) => {
     const cookieToken = req.cookies?.jwt;
     const authHeader = typeof req.headers?.authorization === "string" ? req.headers.authorization : "";
     const bearerToken = authHeader.replace(/^Bearer\s+/i, "");
-    const token = cookieToken || bearerToken;
+    const token = bearerToken || cookieToken;
 
     if (!token) return res.status(401).json({ message: "Unauthorized - No token" });
 
