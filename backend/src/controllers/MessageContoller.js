@@ -52,7 +52,7 @@ export const getMessages = async (req, res) => {
         seen: { $ne: true },
       },
       {
-        $set: { seen: true, seenAt: now },
+        $set: { seen: true, seenAt: now, status: "read", readAt: now },
         $addToSet: { seenBy: me },
       }
     );
@@ -61,10 +61,9 @@ export const getMessages = async (req, res) => {
     const senderSocketIds = getReceiverSocketIds(otherIdStr);
     if (senderSocketIds.length > 0) {
       senderSocketIds.forEach((sid) => {
-        io.to(sid).emit("messagesSeen", {
-          conversationWith: meStr,
-          seenBy: meStr,
-          seenAt: now,
+        io.to(sid).emit("messagesRead", {
+          readerId: meStr,
+          readAt: now,
         });
       });
     }
@@ -102,7 +101,7 @@ export const markMessagesSeen = async (req, res) => {
         seen: { $ne: true },
       },
       {
-        $set: { seen: true, seenAt: now },
+        $set: { seen: true, seenAt: now, status: "read", readAt: now },
         $addToSet: { seenBy: me },
       }
     );
@@ -110,10 +109,9 @@ export const markMessagesSeen = async (req, res) => {
     // Realtime broadcast to sender
     const senderSocketIds = getReceiverSocketIds(otherIdStr);
     senderSocketIds.forEach((sid) => {
-      io.to(sid).emit("messagesSeen", {
-        conversationWith: meStr,
-        seenBy: meStr,
-        seenAt: now,
+      io.to(sid).emit("messagesRead", {
+        readerId: meStr,
+        readAt: now,
       });
     });
 
@@ -146,11 +144,33 @@ export const sendMessage = async (req, res) => {
     }
 
     const newMessage = await Message.create({
-      senderId, receiverId, text: text || "", image: image || "",
+      senderId,
+      receiverId,
+      text: text || "",
+      image: image || "",
+      status: "sent",
     });
 
     const receiverSocketIds = getReceiverSocketIds(receiverId);
+    const messageDelivered = receiverSocketIds.length > 0;
+    const deliveredAt = new Date();
+    if (messageDelivered) {
+      newMessage.status = "delivered";
+      newMessage.deliveredAt = deliveredAt;
+      await Message.updateOne({ _id: newMessage._id }, {
+        $set: { status: "delivered", deliveredAt },
+      });
+    }
+
     receiverSocketIds.forEach((sid) => io.to(sid).emit("newMessage", newMessage));
+
+    const senderSocketIds = getReceiverSocketIds(senderId);
+    senderSocketIds.forEach((sid) => {
+      io.to(sid).emit("messagesDelivered", {
+        receiverId: receiverId.toString(),
+        deliveredAt,
+      });
+    });
 
     res.status(201).json(newMessage);
   } catch (err) {

@@ -433,27 +433,28 @@ export const useChatStore = create((set, get) => ({
 
       const isForMe = msgReceiverId === myId;
       const isFromMe = msgSenderId === myId;
-      const isFromSelected = msgSenderId === selectedId && isForMe;
-      const isFromOtherConversation = isForMe && !isFromMe && msgSenderId !== selectedId;
+      const isSelectedConversation = !!selectedId && ((msgSenderId === selectedId && msgReceiverId === myId) || (msgSenderId === myId && msgReceiverId === selectedId));
+      const isOtherConversation = isForMe && !isFromMe && !!selectedId && msgSenderId !== selectedId;
 
       if (!isForMe && !isFromMe) return;
 
-      if (isFromSelected) {
+      if (isSelectedConversation) {
         get().clearUnreadCount(selectedId);
-      } else if (isFromOtherConversation) {
+      } else if (isOtherConversation) {
         const currentCount = Number(get().unreadCounts[msgSenderId] || 0);
         get().setUnreadCount(msgSenderId, currentCount + 1);
+        return;
       }
 
-      // Clear sender from typing indicator upon message arrival
-      if (msgSenderId && selectedId) {
+      if (msgSenderId && selectedId && msgSenderId === selectedId) {
         get().removeTypingUser(selectedId, msgSenderId);
       }
 
-      set({ messages: appendUniqueMessage(get().messages, newMessage) });
+      if (isSelectedConversation) {
+        set({ messages: appendUniqueMessage(get().messages, newMessage) });
+      }
 
-      // Automatically mark as read since recipient is currently actively looking at this conversation
-      if (isFromSelected && myId) {
+      if (isSelectedConversation && myId && msgSenderId === selectedId) {
         socket.emit("markAsRead", { senderId: selectedId, receiverId: myId });
         try { axiosInstance.post(`/messages/mark-seen/${selectedId}`); } catch {}
       }
@@ -529,22 +530,23 @@ export const useChatStore = create((set, get) => ({
 
       if (!msgGroupId) return;
 
-      const isForMyGroup = !!msgGroupId;
       const isFromMe = msgSenderId === myId;
-      const isInSelectedGroup = currentGroupId && currentGroupId === msgGroupId;
+      const isInSelectedGroup = !!currentGroupId && currentGroupId === msgGroupId;
+      const isFromOtherGroup = !!msgGroupId && !isFromMe && !isInSelectedGroup;
 
       if (isInSelectedGroup && !isFromMe) {
         get().clearUnreadCount(currentGroupId);
-      } else if (isForMyGroup && !isFromMe && !isInSelectedGroup) {
+      } else if (isFromOtherGroup) {
         const currentCount = Number(get().unreadCounts[msgGroupId] || 0);
         get().setUnreadCount(msgGroupId, currentCount + 1);
+        return;
       }
 
-      // Clear sender from typing indicator upon message arrival
-      if (msgSenderId && currentGroupId) {
+      if (msgSenderId && currentGroupId && isInSelectedGroup) {
         get().removeTypingUser(currentGroupId, msgSenderId);
       }
 
+      if (!isInSelectedGroup && !isFromMe) return;
       set({ messages: appendUniqueMessage(get().messages, newMessage) });
 
       if (myId && !isFromMe && isInSelectedGroup) {

@@ -43,10 +43,68 @@ io.on("connection", (socket) => {
     if (targetUserId) {
       const sids = getReceiverSocketIds(targetUserId);
       sids.forEach((sid) => {
-        io.to(sid).emit("messagesSeen", {
-          conversationWith: seenBy?.toString() || userId,
-          seenBy: seenBy?.toString() || userId,
-          seenAt: now,
+        io.to(sid).emit("messagesRead", {
+          readerId: seenBy?.toString() || userId,
+          readAt: now,
+        });
+      });
+    }
+  });
+
+  socket.on("markAsRead", async ({ senderId, receiverId }) => {
+    if (!senderId || !receiverId) return;
+    const now = new Date();
+    const senderIdStr = senderId.toString();
+    const receiverIdStr = receiverId.toString();
+    const { default: Message } = await import("../models/MessageModel.js");
+    await Message.updateMany(
+      {
+        senderId: { $in: [senderId, senderIdStr] },
+        receiverId: { $in: [receiverId, receiverIdStr] },
+        status: { $ne: "read" },
+      },
+      {
+        $set: { status: "read", readAt: now, seen: true, seenAt: now },
+        $addToSet: { seenBy: receiverIdStr },
+      }
+    );
+
+    const senderSocketIds = getReceiverSocketIds(senderIdStr);
+    senderSocketIds.forEach((sid) => {
+      io.to(sid).emit("messagesRead", {
+        readerId: receiverIdStr,
+        readAt: now,
+      });
+    });
+  });
+
+  socket.on("markGroupAsRead", async ({ groupId, readerId }) => {
+    if (!groupId || !readerId) return;
+    const now = new Date();
+    const { default: Message } = await import("../models/MessageModel.js");
+    await Message.updateMany(
+      {
+        groupId,
+        senderId: { $ne: readerId },
+        readBy: { $nin: [readerId] },
+      },
+      {
+        $addToSet: { readBy: readerId },
+        $set: { status: "read", readAt: now },
+      }
+    );
+
+    const { default: Group } = await import("../models/GroupModel.js");
+    const group = await Group.findById(groupId).catch(() => null);
+    if (group) {
+      group.members.forEach((memberId) => {
+        const memberSocketIds = getReceiverSocketIds(memberId.toString());
+        memberSocketIds.forEach((sid) => {
+          io.to(sid).emit("groupMessagesRead", {
+            groupId: groupId.toString(),
+            readerId,
+            readAt: now,
+          });
         });
       });
     }
