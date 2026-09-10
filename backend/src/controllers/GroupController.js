@@ -38,8 +38,12 @@ export const getGroupsForUser = async (req, res) => {
     const unreadGroupMessages = await Message.find({
       groupId: { $in: groupIds },
       senderId: { $nin: [me, meStr] },
-      seenBy: { $nin: [me, meStr] },
       deletedFor: { $nin: [me, meStr] },
+      $or: [
+        { seenBy: { $nin: [me, meStr] } },
+        { seen: { $ne: true } },
+        { status: { $ne: "read" } },
+      ],
     });
 
     const unreadCounts = {};

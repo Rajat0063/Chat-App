@@ -11,8 +11,11 @@ export const getUsersForSidebar = async (req, res) => {
       User.findById(me).select("blockedUsers"),
       Message.find({
         receiverId: { $in: [me, meStr] },
-        seen: { $ne: true },
         deletedFor: { $nin: [me, meStr] },
+        $or: [
+          { seen: { $ne: true } },
+          { status: { $ne: "read" } },
+        ],
       }),
     ]);
 
