@@ -37,6 +37,90 @@ io.on("connection", (socket) => {
 
   io.emit("getOnlineUsers", Object.keys(userSocketMap));
 
+  socket.on("typingStart", ({ type, receiverId, groupId, userName }) => {
+    if (!userId) return;
+    const senderId = userId.toString();
+
+    if (type === "direct") {
+      const targetId = receiverId?.toString();
+      if (!targetId) return;
+      const sids = getReceiverSocketIds(targetId);
+      sids.forEach((sid) => {
+        io.to(sid).emit("userTyping", {
+          userId: senderId,
+          conversationId: senderId,
+          userName: userName || "Contact",
+          type: "direct",
+        });
+      });
+      return;
+    }
+
+    if (type === "group") {
+      const targetGroupId = groupId?.toString();
+      if (!targetGroupId) return;
+      import("../models/GroupModel.js")
+        .then(({ default: Group }) => Group.findById(targetGroupId))
+        .then((group) => {
+          if (!group || !Array.isArray(group.members)) return;
+          group.members.forEach((memberId) => {
+            const memberSocketIds = getReceiverSocketIds(memberId.toString());
+            memberSocketIds.forEach((sid) => {
+              io.to(sid).emit("userTyping", {
+                userId: senderId,
+                groupId: targetGroupId,
+                conversationId: targetGroupId,
+                userName: userName || "Member",
+                type: "group",
+              });
+            });
+          });
+        })
+        .catch(() => {});
+    }
+  });
+
+  socket.on("typingStop", ({ type, receiverId, groupId }) => {
+    if (!userId) return;
+    const senderId = userId.toString();
+
+    if (type === "direct") {
+      const targetId = receiverId?.toString();
+      if (!targetId) return;
+      const sids = getReceiverSocketIds(targetId);
+      sids.forEach((sid) => {
+        io.to(sid).emit("userStopTyping", {
+          userId: senderId,
+          conversationId: senderId,
+          type: "direct",
+        });
+      });
+      return;
+    }
+
+    if (type === "group") {
+      const targetGroupId = groupId?.toString();
+      if (!targetGroupId) return;
+      import("../models/GroupModel.js")
+        .then(({ default: Group }) => Group.findById(targetGroupId))
+        .then((group) => {
+          if (!group || !Array.isArray(group.members)) return;
+          group.members.forEach((memberId) => {
+            const memberSocketIds = getReceiverSocketIds(memberId.toString());
+            memberSocketIds.forEach((sid) => {
+              io.to(sid).emit("userStopTyping", {
+                userId: senderId,
+                groupId: targetGroupId,
+                conversationId: targetGroupId,
+                type: "group",
+              });
+            });
+          });
+        })
+        .catch(() => {});
+    }
+  });
+
   socket.on("markSeen", ({ conversationWith, seenBy }) => {
     const now = new Date();
     const targetUserId = conversationWith?.toString();
