@@ -213,6 +213,116 @@ export const initMemoryStore = async () => {
 
   memoryData.messages.push(m1, m2, m3, m4);
 
+  const m5 = createDoc({
+    _id: new MockId("660000000000000000000015"),
+    senderId: abhinavId,
+    receiverId: rajatId,
+    text: "Hey Rajat, welcome back! The real-time messaging is configured.",
+    image: "",
+    groupId: null,
+    deletedFor: [],
+    seen: true,
+    seenAt: new Date(Date.now() - 3600000),
+    seenBy: [rajatId],
+    status: "read",
+    readAt: new Date(Date.now() - 3600000),
+    readBy: [rajatId],
+    createdAt: new Date(Date.now() - 3600000),
+    updatedAt: new Date(Date.now() - 3600000),
+  }, "messages");
+
+  const m6 = createDoc({
+    _id: new MockId("660000000000000000000016"),
+    senderId: rajatId,
+    receiverId: abhinavId,
+    text: "Awesome! Testing socket events and image sharing.",
+    image: "",
+    groupId: null,
+    deletedFor: [],
+    seen: true,
+    seenAt: new Date(Date.now() - 2500000),
+    seenBy: [abhinavId],
+    status: "read",
+    readAt: new Date(Date.now() - 2500000),
+    readBy: [abhinavId],
+    createdAt: new Date(Date.now() - 2700000),
+    updatedAt: new Date(Date.now() - 2500000),
+  }, "messages");
+
+  const m7 = createDoc({
+    _id: new MockId("660000000000000000000017"),
+    senderId: abhinavId,
+    receiverId: rajatId,
+    text: "Did you check out the new group chat and unread badge features?",
+    image: "",
+    groupId: null,
+    deletedFor: [],
+    seen: false,
+    seenAt: null,
+    seenBy: [],
+    status: "delivered",
+    deliveredAt: new Date(Date.now() - 1200000),
+    readBy: [],
+    createdAt: new Date(Date.now() - 1200000),
+    updatedAt: new Date(Date.now() - 1200000),
+  }, "messages");
+
+  const m8 = createDoc({
+    _id: new MockId("660000000000000000000018"),
+    senderId: abhinavId,
+    receiverId: rajatId,
+    text: "Let me know what you think!",
+    image: "",
+    groupId: null,
+    deletedFor: [],
+    seen: false,
+    seenAt: null,
+    seenBy: [],
+    status: "sent",
+    deliveredAt: null,
+    readBy: [],
+    createdAt: new Date(Date.now() - 600000),
+    updatedAt: new Date(Date.now() - 600000),
+  }, "messages");
+
+  const m9 = createDoc({
+    _id: new MockId("660000000000000000000019"),
+    senderId: testUserId,
+    receiverId: rajatId,
+    text: "Hey Rajat! Just dropped by to test the app.",
+    image: "",
+    groupId: null,
+    deletedFor: [],
+    seen: false,
+    seenAt: null,
+    seenBy: [],
+    status: "sent",
+    deliveredAt: null,
+    readBy: [],
+    createdAt: new Date(Date.now() - 300000),
+    updatedAt: new Date(Date.now() - 300000),
+  }, "messages");
+
+  const m10 = createDoc({
+    _id: new MockId("660000000000000000000020"),
+    senderId: abhinavId,
+    receiverId: null,
+    groupId: groupId,
+    text: "Welcome everyone to Chatty Dev Community! Feel free to share your thoughts.",
+    image: "",
+    deletedFor: [],
+    seen: false,
+    seenAt: null,
+    seenBy: [abhinavId],
+    status: "delivered",
+    deliveredAt: new Date(Date.now() - 900000),
+    readBy: [abhinavId],
+    createdAt: new Date(Date.now() - 900000),
+    updatedAt: new Date(Date.now() - 900000),
+  }, "messages");
+
+  memoryData.messages.push(m5, m6, m7, m8, m9, m10);
+
   // Demo Group
   const groupId = new MockId("660000000000000000000021");
   const demoGroup = createDoc({

@@ -21,14 +21,14 @@ const socketActiveChatMap = {};
 
 export const getReceiverSocketIds = (userId) => {
   if (!userId) return [];
-  const key = (userId?._id || userId).toString();
-  return Array.from(userSocketMap[key] || []);
+  const idStr = (userId?._id || userId)?.toString();
+  return Array.from(userSocketMap[idStr] || []);
 };
 
 export const getReceiverSocketId = (userId) => {
   if (!userId) return undefined;
-  const key = (userId?._id || userId).toString();
-  const ids = userSocketMap[key];
+  const idStr = (userId?._id || userId)?.toString();
+  const ids = userSocketMap[idStr];
   return ids && ids.size ? Array.from(ids)[0] : undefined;
 };
 
@@ -70,7 +70,23 @@ io.on("connection", async (socket) => {
     }
   }
 
-  io.emit("getOnlineUsers", Object.keys(userSocketMap));
+  io.emit(
+    "getOnlineUsers",
+    Object.keys(userSocketMap).filter((id) => userSocketMap[id] && userSocketMap[id].size > 0)
+  );
+
+  socket.on("markSeen", ({ senderId, receiverId }) => {
+    if (!senderId || !receiverId) return;
+
+    const sIds = getReceiverSocketIds(senderId);
+    sIds.forEach((sid) => {
+      io.to(sid).emit("messagesSeen", {
+        conversationWith: receiverId,
+        seenBy: receiverId,
+        seenAt: new Date(),
+      });
+    });
+  });
 
   // User enters a specific conversation (direct message or group)
   socket.on("enterChat", async ({ type, id }) => {
@@ -324,7 +340,10 @@ io.on("connection", async (socket) => {
       }
     }
     delete socketActiveChatMap[socket.id];
-    io.emit("getOnlineUsers", Object.keys(userSocketMap));
+    io.emit(
+      "getOnlineUsers",
+      Object.keys(userSocketMap).filter((id) => userSocketMap[id] && userSocketMap[id].size > 0)
+    );
   });
 });
 

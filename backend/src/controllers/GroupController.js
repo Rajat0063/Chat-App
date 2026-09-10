@@ -26,20 +26,28 @@ export const createGroup = async (req, res) => {
 export const getGroupsForUser = async (req, res) => {
   try {
     const me = req.user._id;
-    const groups = await Group.find({ members: me })
+    const meStr = (me?._id || me)?.toString();
+
+    const groups = await Group.find({
+      members: { $in: [me, meStr] },
+    })
       .populate("members", "fullName profilePic")
       .populate("owner", "fullName profilePic");
+
     const groupIds = groups.map((group) => group._id);
     const unreadGroupMessages = await Message.find({
       groupId: { $in: groupIds },
-      senderId: { $ne: me },
-      seenBy: { $nin: [me] },
+      senderId: { $nin: [me, meStr] },
+      seenBy: { $nin: [me, meStr] },
+      deletedFor: { $nin: [me, meStr] },
     });
+
     const unreadCounts = {};
     unreadGroupMessages.forEach((message) => {
-      const groupId = message.groupId?.toString();
+      const groupId = (message.groupId?._id || message.groupId)?.toString();
       if (groupId) unreadCounts[groupId] = (unreadCounts[groupId] || 0) + 1;
     });
+
     res.json({ groups, unreadCounts });
   } catch (err) {
     console.log("getGroupsForUser:", err.message);
@@ -118,24 +126,30 @@ export const markGroupMessagesSeen = async (req, res) => {
   try {
     const { id: groupId } = req.params;
     const me = req.user._id;
+    const meStr = (me?._id || me)?.toString();
     const group = await Group.findById(groupId).select("members");
     if (!group) return res.status(404).json({ message: "Group not found" });
-    if (!group.members.some((memberId) => memberId.equals(me))) {
+    const isMember = Array.isArray(group.members) && group.members.some((memberId) => {
+      const memberStr = (memberId?._id || memberId)?.toString();
+      return memberStr === meStr;
+    });
+    if (!isMember) {
       return res.status(403).json({ message: "Not a group member" });
     }
 
     const seenAt = new Date();
     await Message.updateMany(
-      { groupId, senderId: { $ne: me } },
+      { groupId, senderId: { $nin: [me, meStr] } },
       { $addToSet: { seenBy: me, readBy: me } }
     );
 
     group.members.forEach((memberId) => {
-      if (memberId.equals(me)) return;
-      getReceiverSocketIds(memberId.toString()).forEach((sid) => {
+      const memberStr = (memberId?._id || memberId)?.toString();
+      if (memberStr === meStr) return;
+      getReceiverSocketIds(memberStr).forEach((sid) => {
         io.to(sid).emit("groupMessagesSeen", {
           groupId: groupId.toString(),
-          seenBy: me.toString(),
+          seenBy: meStr,
           seenAt,
         });
       });
