@@ -425,31 +425,37 @@ export const useChatStore = create((set, get) => ({
     socket.off("newMessage");
     socket.on("newMessage", (newMessage) => {
       const selected = get().selectedUser;
-      if (!selected) return;
-      const sSelectedId = toIdStr(selected._id);
+      const selectedId = selected ? toIdStr(selected._id) : "";
       const msgSenderId = toIdStr(newMessage.senderId);
       const msgReceiverId = toIdStr(newMessage.receiverId);
       const authUser = useAuthStore.getState().authUser;
       const myId = toIdStr(authUser?._id);
 
-      const isFromSelected = msgSenderId === sSelectedId && msgReceiverId === myId;
-      const isFromMe = msgSenderId === myId && msgReceiverId === sSelectedId;
+      const isForMe = msgReceiverId === myId;
+      const isFromMe = msgSenderId === myId;
+      const isFromSelected = msgSenderId === selectedId && isForMe;
+      const isFromOtherConversation = isForMe && !isFromMe && msgSenderId !== selectedId;
 
-      if (!isFromSelected && !isFromMe) return;
+      if (!isForMe && !isFromMe) return;
 
-      if (isFromSelected) get().clearUnreadCount(sSelectedId);
+      if (isFromSelected) {
+        get().clearUnreadCount(selectedId);
+      } else if (isFromOtherConversation) {
+        const currentCount = Number(get().unreadCounts[msgSenderId] || 0);
+        get().setUnreadCount(msgSenderId, currentCount + 1);
+      }
 
       // Clear sender from typing indicator upon message arrival
-      if (msgSenderId && sSelectedId) {
-        get().removeTypingUser(sSelectedId, msgSenderId);
+      if (msgSenderId && selectedId) {
+        get().removeTypingUser(selectedId, msgSenderId);
       }
 
       set({ messages: appendUniqueMessage(get().messages, newMessage) });
 
       // Automatically mark as read since recipient is currently actively looking at this conversation
       if (isFromSelected && myId) {
-        socket.emit("markAsRead", { senderId: sSelectedId, receiverId: myId });
-        try { axiosInstance.post(`/messages/read/${sSelectedId}`); } catch {}
+        socket.emit("markAsRead", { senderId: selectedId, receiverId: myId });
+        try { axiosInstance.post(`/messages/read/${selectedId}`); } catch {}
       }
     });
 
@@ -515,14 +521,23 @@ export const useChatStore = create((set, get) => ({
     socket.off("newGroupMessage");
     socket.on("newGroupMessage", (newMessage) => {
       const selected = get().selectedGroup;
-      if (!selected) return;
-      const currentGroupId = toIdStr(selected._id);
+      const currentGroupId = selected ? toIdStr(selected._id) : "";
       const msgGroupId = toIdStr(newMessage.groupId);
       const msgSenderId = toIdStr(newMessage.senderId);
-      if (currentGroupId !== msgGroupId) return;
+      const authUser = useAuthStore.getState().authUser;
+      const myId = toIdStr(authUser?._id);
 
-      if (msgSenderId !== toIdStr(useAuthStore.getState().authUser?._id)) {
+      if (!msgGroupId) return;
+
+      const isForMyGroup = !!msgGroupId;
+      const isFromMe = msgSenderId === myId;
+      const isInSelectedGroup = currentGroupId && currentGroupId === msgGroupId;
+
+      if (isInSelectedGroup && !isFromMe) {
         get().clearUnreadCount(currentGroupId);
+      } else if (isForMyGroup && !isFromMe && !isInSelectedGroup) {
+        const currentCount = Number(get().unreadCounts[msgGroupId] || 0);
+        get().setUnreadCount(msgGroupId, currentCount + 1);
       }
 
       // Clear sender from typing indicator upon message arrival
@@ -532,10 +547,7 @@ export const useChatStore = create((set, get) => ({
 
       set({ messages: appendUniqueMessage(get().messages, newMessage) });
 
-      const authUser = useAuthStore.getState().authUser;
-      const myId = toIdStr(authUser?._id);
-
-      if (myId && msgSenderId !== myId) {
+      if (myId && !isFromMe && isInSelectedGroup) {
         socket.emit("markGroupAsRead", { groupId: currentGroupId, readerId: myId });
         try { axiosInstance.post(`/groups/${currentGroupId}/read`); } catch {}
       }
