@@ -1,41 +1,56 @@
 import mongoose from "mongoose";
-import { initMemoryStore } from "./memoryStore.js";
+import bcrypt from "bcryptjs";
+import { initMemoryDb } from "./memoryStore.js";
 
-const initMemoryDb = async () => {
-  try {
-    await initMemoryStore();
-  } catch (err) {
-    console.warn("⚠️ In-memory fallback init warning:", err.message);
-  }
-};
+export const isMongoConnected = () => mongoose.connection.readyState === 1;
 
-export const connectDB = async () => {
-  // Always initialize in-memory fallback first for immediate responsiveness
-  await initMemoryDb();
-
-  try {
-    const mongoUri = process.env.MONGO_URI || process.env.MONGODB_URI;
-    if (!mongoUri) {
-      console.warn("⚠️ No MONGO_URI provided in environment. Using robust in-memory database.");
-      return;
-    }
-
-    const conn = await mongoose.connect(mongoUri, {
-      serverSelectionTimeoutMS: 5000,
-      connectTimeoutMS: 5000,
-    });
-    console.log(`✅ MongoDB Connected: ${conn.connection.host}`);
-
-    await ensureMongoDemoUsers();
-  } catch (err) {
-    console.warn(`⚠️ MongoDB connection error: ${err.message}. Using robust in-memory database.`);
-  }
-};
-
-async function ensureMongoDemoUsers() {
+const ensureMongoDemoUsers = async () => {
   try {
     const usersCol = mongoose.connection.db.collection("users");
+    const hash = await bcrypt.hash("123456", 10);
+    const demos = [
+      {
+        fullName: "Rajat Yadav",
+        email: "rajat@example.com",
+        password: hash,
+        profilePic: "https://api.dicebear.com/7.x/avataaars/svg?seed=Rajat",
+        isVerified: true,
+        about: "Hello! I am Rajat, creator of Chatty.",
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+      {
+        fullName: "Abhinav",
+        email: "abhinav@example.com",
+        password: hash,
+        profilePic: "https://api.dicebear.com/7.x/avataaars/svg?seed=Abhinav",
+        isVerified: true,
+        about: "Building real-time apps.",
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+      {
+        fullName: "Test User",
+        email: "test@example.com",
+        password: hash,
+        profilePic: "https://api.dicebear.com/7.x/avataaars/svg?seed=TestUser",
+        isVerified: true,
+        about: "Testing chat features and themes.",
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    ];
 
+    for (const d of demos) {
+      const existing = await usersCol.findOne({ email: d.email });
+      if (!existing) {
+        await usersCol.insertOne(d);
+      } else if (!existing.isVerified) {
+        await usersCol.updateOne({ email: d.email }, { $set: { isVerified: true } });
+      }
+    }
+
+    // Ensure sample unread messages exist for demo users so badges are visible
     const rajat = await usersCol.findOne({ email: "rajat@example.com" });
     const abhinav = await usersCol.findOne({ email: "abhinav@example.com" });
     const testUser = await usersCol.findOne({ email: "test@example.com" });
@@ -46,13 +61,22 @@ async function ensureMongoDemoUsers() {
         receiverId: rajat._id,
         seen: { $ne: true },
       });
-
       if (!existingUnread) {
         await msgsCol.insertMany([
           {
             senderId: abhinav._id,
             receiverId: rajat._id,
             text: "Hey Rajat, have you checked the new project guidelines?",
+            seen: false,
+            seenBy: [],
+            deletedFor: [],
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+          {
+            senderId: abhinav._id,
+            receiverId: rajat._id,
+            text: "Let me know when you are free for a quick sync!",
             seen: false,
             seenBy: [],
             deletedFor: [],
@@ -86,7 +110,6 @@ async function ensureMongoDemoUsers() {
         });
         devGroup = { _id: res.insertedId };
       }
-
       const groupUnread = await msgsCol.findOne({
         groupId: devGroup._id,
         seenBy: { $nin: [rajat._id] },
@@ -106,6 +129,27 @@ async function ensureMongoDemoUsers() {
   } catch (err) {
     console.warn("⚠️ Demo users check in Mongo warning:", err.message);
   }
-}
+};
 
-export { initMemoryDb };
+export const connectDB = async () => {
+  // Ensure in-memory store is initialized immediately so app is always functional
+  try {
+    await initMemoryDb();
+  } catch (e) {
+    console.warn("Memory store init warning:", e);
+  }
+
+  const uri = process.env.MONGO_URI || process.env.MONGODB_URI;
+  if (!uri) {
+    console.log("ℹ️ MONGO_URI not provided — using in-memory store with demo users.");
+    return;
+  }
+  try {
+    mongoose.set("bufferCommands", false);
+    const conn = await mongoose.connect(uri, { serverSelectionTimeoutMS: 5000 });
+    console.log(`✅ MongoDB connected: ${conn.connection.host}`);
+    await ensureMongoDemoUsers();
+  } catch (err) {
+    console.warn("⚠️ MongoDB connection failed (falling back to in-memory store):", err?.message || err);
+  }
+};

@@ -36,8 +36,8 @@ export default function App() {
         <Route path="/verify-otp"      element={!authUser ? <VerifyOtpPage /> : <Navigate to="/chat" />} />
         <Route path="/forgot-password" element={!authUser ? <ForgotPasswordPage /> : <Navigate to="/chat" />} />
         <Route path="/reset-password"  element={!authUser ? <ResetPasswordPage /> : <Navigate to="/chat" />} />
-        <Route path="/chat"            element={authUser ? <HomePage /> : <Navigate to="/login" />} />
-        <Route path="/profile"         element={authUser ? <ProfilePage /> : <Navigate to="/login" />} />
+        <Route path="/chat"            element={authUser ? <HomePage /> : (isCheckingAuth ? null : <Navigate to="/login" />)} />
+        <Route path="/profile"         element={authUser ? <ProfilePage /> : (isCheckingAuth ? null : <Navigate to="/login" />)} />
         <Route path="/settings"        element={<SettingsPage />} />
         <Route path="*"                element={<Navigate to="/" />} />
       </Routes>
