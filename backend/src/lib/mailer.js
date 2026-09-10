@@ -17,17 +17,26 @@ const parseEmail = (raw) => {
 
 const getDefaultFrom = () => {
   const configured = process.env.MAIL_FROM || process.env.BREVO_FROM || process.env.MAIL_USER || "no-reply@chatty.com";
-  if (configured.includes("@") && !configured.includes("<")) {
-    return `"Chatty" <${configured}>`;
+  const email = (configured || "no-reply@chatty.com").trim();
+  const normalized = email.includes("<") ? email.match(/<([^>]+)>/)?.[1] || email : email;
+  const lower = normalized.toLowerCase();
+
+  if (lower.includes("gmail.com") || lower.includes("yahoo.com") || lower.includes("outlook.com") || lower.includes("hotmail.com")) {
+    return '"Chatty" <no-reply@chatty.com>';
   }
-  return configured.includes("<") ? configured : `"Chatty" <${configured}>`;
+
+  if (lower.includes("@chatty.com") || lower.includes("@chatty.app")) {
+    return `"Chatty" <${normalized}>`;
+  }
+
+  return '"Chatty" <no-reply@chatty.com>';
 };
 
 const sendViaBrevoApi = async ({ to, subject, text, html }) => {
   const brevoApiKey = process.env.BREVO_API_KEY;
   if (!brevoApiKey) return null;
 
-  const rawSender = process.env.BREVO_FROM || process.env.MAIL_FROM || "no-reply@chatty.com";
+  const rawSender = getDefaultFrom();
   const senderObj = parseEmail(rawSender);
 
   try {
@@ -127,7 +136,7 @@ export const sendMail = async ({ to, subject, text, html }) => {
   const mailUser = process.env.MAIL_USER;
   const mailPass = process.env.MAIL_PASS;
   const from = getDefaultFrom();
-  const replyTo = process.env.MAIL_REPLY_TO || mailUser || "support@chatty.com";
+  const replyTo = process.env.MAIL_REPLY_TO || "support@chatty.com";
 
   if (mailUser && mailPass) {
     try {
