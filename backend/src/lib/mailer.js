@@ -4,22 +4,30 @@ let primaryTransporter = null;
 let etherealTransporter = null;
 
 const parseEmail = (raw) => {
-  if (!raw) return { name: "Chatty App", email: "no-reply@chatty.app" };
+  if (!raw) return { name: "Chatty", email: "no-reply@chatty.com" };
   const match = raw.match(/^(?:"?([^"]*)"?\s)?<?([^\s>]+)>?$/);
   if (match && match[2]) {
     return {
-      name: match[1] || "Chatty App",
+      name: match[1] || "Chatty",
       email: match[2],
     };
   }
-  return { name: "Chatty App", email: raw };
+  return { name: "Chatty", email: raw };
+};
+
+const getDefaultFrom = () => {
+  const configured = process.env.MAIL_FROM || process.env.BREVO_FROM || process.env.MAIL_USER || "no-reply@chatty.com";
+  if (configured.includes("@") && !configured.includes("<")) {
+    return `"Chatty" <${configured}>`;
+  }
+  return configured.includes("<") ? configured : `"Chatty" <${configured}>`;
 };
 
 const sendViaBrevoApi = async ({ to, subject, text, html }) => {
   const brevoApiKey = process.env.BREVO_API_KEY;
   if (!brevoApiKey) return null;
 
-  const rawSender = process.env.BREVO_FROM || process.env.MAIL_FROM || process.env.MAIL_USER || "no-reply@chatty.app";
+  const rawSender = process.env.BREVO_FROM || process.env.MAIL_FROM || "no-reply@chatty.com";
   const senderObj = parseEmail(rawSender);
 
   try {
@@ -118,7 +126,8 @@ export const sendMail = async ({ to, subject, text, html }) => {
   // 2. Primary SMTP / Gmail Delivery
   const mailUser = process.env.MAIL_USER;
   const mailPass = process.env.MAIL_PASS;
-  const from = process.env.MAIL_FROM || (mailUser ? `"Chatty App" <${mailUser}>` : '"Chatty App" <no-reply@chatty.app>');
+  const from = getDefaultFrom();
+  const replyTo = process.env.MAIL_REPLY_TO || mailUser || "support@chatty.com";
 
   if (mailUser && mailPass) {
     try {
@@ -128,6 +137,7 @@ export const sendMail = async ({ to, subject, text, html }) => {
       if (primaryTransporter) {
         const info = await primaryTransporter.sendMail({
           from,
+          replyTo,
           to,
           subject,
           text,
@@ -147,7 +157,8 @@ export const sendMail = async ({ to, subject, text, html }) => {
     const ethTransporter = await getEtherealTransporter();
     if (ethTransporter) {
       const info = await ethTransporter.sendMail({
-        from: '"Chatty App" <no-reply@chatty.app>',
+        from: '"Chatty" <no-reply@chatty.com>',
+        replyTo: process.env.MAIL_REPLY_TO || "support@chatty.com",
         to,
         subject,
         text,
