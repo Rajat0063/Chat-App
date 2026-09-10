@@ -274,11 +274,15 @@ export const sendGroupMessage = async (req, res) => {
     let status = "sent";
     let deliveredAt = null;
     let readAt = null;
+    let seen = false;
+    let seenAt = null;
 
     if (readBy.length > 1) {
       status = "read";
       deliveredAt = now;
       readAt = now;
+      seen = true;
+      seenAt = now;
     } else if (anyOtherOnline) {
       status = "delivered";
       deliveredAt = now;
@@ -293,6 +297,9 @@ export const sendGroupMessage = async (req, res) => {
       status,
       deliveredAt,
       readAt,
+      seen,
+      seenAt,
+      seenBy: [...new Set(readBy)],
       readBy,
     });
     newMessage = await newMessage.populate("senderId", "fullName profilePic");

@@ -139,12 +139,16 @@ export const sendMessage = async (req, res) => {
     let status = "sent";
     let deliveredAt = null;
     let readAt = null;
+    let seen = false;
+    let seenAt = null;
     const readBy = [senderId];
 
     if (isReceiverInChat) {
       status = "read";
       deliveredAt = now;
       readAt = now;
+      seen = true;
+      seenAt = now;
       readBy.push(receiverId);
     } else if (isReceiverOnline) {
       status = "delivered";
@@ -159,6 +163,9 @@ export const sendMessage = async (req, res) => {
       status,
       deliveredAt,
       readAt,
+      seen,
+      seenAt,
+      seenBy: seen ? [...new Set(readBy)] : [senderId],
       readBy,
     });
 
