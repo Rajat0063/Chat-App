@@ -29,9 +29,12 @@ export default function Navbar() {
                   <User className="size-4" />
                   <span className="hidden sm:inline">Profile</span>
                 </Link>
-                <button onClick={logout} className="btn btn-sm btn-ghost gap-2">
+                <button
+                  onClick={logout}
+                  className="btn btn-sm gap-2 border border-red-500/40 bg-red-500/10 text-red-600 hover:bg-red-500 hover:text-white hover:border-red-500 shadow-sm transition-all duration-200"
+                >
                   <LogOut className="size-4" />
-                  <span className="hidden sm:inline">Logout</span>
+                  <span className="hidden sm:inline font-semibold">Logout</span>
                 </button>
               </>
             )}
