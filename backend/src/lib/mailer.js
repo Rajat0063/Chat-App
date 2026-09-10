@@ -4,39 +4,22 @@ let primaryTransporter = null;
 let etherealTransporter = null;
 
 const parseEmail = (raw) => {
-  if (!raw) return { name: "Chatty", email: "no-reply@chatty.com" };
+  if (!raw) return { name: "Chatty App", email: "no-reply@chatty.app" };
   const match = raw.match(/^(?:"?([^"]*)"?\s)?<?([^\s>]+)>?$/);
   if (match && match[2]) {
     return {
-      name: match[1] || "Chatty",
+      name: match[1] || "Chatty App",
       email: match[2],
     };
   }
-  return { name: "Chatty", email: raw };
-};
-
-const getDefaultFrom = () => {
-  const configured = process.env.MAIL_FROM || process.env.BREVO_FROM || process.env.MAIL_USER || "no-reply@chatty.com";
-  const email = (configured || "no-reply@chatty.com").trim();
-  const normalized = email.includes("<") ? email.match(/<([^>]+)>/)?.[1] || email : email;
-  const lower = normalized.toLowerCase();
-
-  if (lower.includes("gmail.com") || lower.includes("yahoo.com") || lower.includes("outlook.com") || lower.includes("hotmail.com")) {
-    return '"Chatty" <no-reply@chatty.com>';
-  }
-
-  if (lower.includes("@chatty.com") || lower.includes("@chatty.app")) {
-    return `"Chatty" <${normalized}>`;
-  }
-
-  return '"Chatty" <no-reply@chatty.com>';
+  return { name: "Chatty App", email: raw };
 };
 
 const sendViaBrevoApi = async ({ to, subject, text, html }) => {
   const brevoApiKey = process.env.BREVO_API_KEY;
   if (!brevoApiKey) return null;
 
-  const rawSender = getDefaultFrom();
+  const rawSender = process.env.BREVO_FROM || process.env.MAIL_FROM || process.env.MAIL_USER || "no-reply@chatty.app";
   const senderObj = parseEmail(rawSender);
 
   try {
@@ -135,8 +118,7 @@ export const sendMail = async ({ to, subject, text, html }) => {
   // 2. Primary SMTP / Gmail Delivery
   const mailUser = process.env.MAIL_USER;
   const mailPass = process.env.MAIL_PASS;
-  const from = getDefaultFrom();
-  const replyTo = process.env.MAIL_REPLY_TO || "support@chatty.com";
+  const from = process.env.MAIL_FROM || (mailUser ? `"Chatty App" <${mailUser}>` : '"Chatty App" <no-reply@chatty.app>');
 
   if (mailUser && mailPass) {
     try {
@@ -146,7 +128,6 @@ export const sendMail = async ({ to, subject, text, html }) => {
       if (primaryTransporter) {
         const info = await primaryTransporter.sendMail({
           from,
-          replyTo,
           to,
           subject,
           text,
@@ -166,8 +147,7 @@ export const sendMail = async ({ to, subject, text, html }) => {
     const ethTransporter = await getEtherealTransporter();
     if (ethTransporter) {
       const info = await ethTransporter.sendMail({
-        from: '"Chatty" <no-reply@chatty.com>',
-        replyTo: process.env.MAIL_REPLY_TO || "support@chatty.com",
+        from: '"Chatty App" <no-reply@chatty.app>',
         to,
         subject,
         text,
