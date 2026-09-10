@@ -396,7 +396,7 @@ export const useChatStore = create((set, get) => ({
       socket.emit("markAsRead", { senderId: cleanUserId, receiverId: cleanAuthUserId });
     }
     try {
-      await axiosInstance.post(`/messages/read/${cleanUserId}`);
+      await axiosInstance.post(`/messages/mark-seen/${cleanUserId}`);
     } catch {}
   },
 
@@ -412,7 +412,7 @@ export const useChatStore = create((set, get) => ({
       socket.emit("markGroupAsRead", { groupId: cleanGroupId, readerId: cleanAuthUserId });
     }
     try {
-      await axiosInstance.post(`/groups/${cleanGroupId}/read`);
+      await axiosInstance.post(`/groups/${cleanGroupId}/mark-seen`);
     } catch {}
   },
 
@@ -455,7 +455,7 @@ export const useChatStore = create((set, get) => ({
       // Automatically mark as read since recipient is currently actively looking at this conversation
       if (isFromSelected && myId) {
         socket.emit("markAsRead", { senderId: selectedId, receiverId: myId });
-        try { axiosInstance.post(`/messages/read/${selectedId}`); } catch {}
+        try { axiosInstance.post(`/messages/mark-seen/${selectedId}`); } catch {}
       }
     });
 
@@ -549,7 +549,7 @@ export const useChatStore = create((set, get) => ({
 
       if (myId && !isFromMe && isInSelectedGroup) {
         socket.emit("markGroupAsRead", { groupId: currentGroupId, readerId: myId });
-        try { axiosInstance.post(`/groups/${currentGroupId}/read`); } catch {}
+        try { axiosInstance.post(`/groups/${currentGroupId}/mark-seen`); } catch {}
       }
     });
 
