@@ -43,8 +43,8 @@ export const getMessages = async (req, res) => {
         status: { $ne: "read" },
       },
       {
-        $set: { status: "read", readAt: now },
-        $addToSet: { readBy: me },
+        $set: { status: "read", readAt: now, seen: true, seenAt: now },
+        $addToSet: { readBy: me, seenBy: me },
       }
     );
 
@@ -87,8 +87,8 @@ export const markMessagesAsRead = async (req, res) => {
         status: { $ne: "read" },
       },
       {
-        $set: { status: "read", readAt: now },
-        $addToSet: { readBy: me },
+        $set: { status: "read", readAt: now, seen: true, seenAt: now },
+        $addToSet: { readBy: me, seenBy: me },
       }
     );
 

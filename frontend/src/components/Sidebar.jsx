@@ -69,7 +69,7 @@ export default function Sidebar() {
           <div className="flex items-center gap-2.5 min-w-0">
             <div className="relative p-2 rounded-xl bg-primary/10 text-primary hidden md:flex items-center justify-center shrink-0">
               <MessageSquare className="size-5" />
-              {totalUnread > 0 && <span className="absolute size-2.5 rounded-full bg-primary ring-2 ring-base-100" />}
+              {totalUnread > 0 && <span className="absolute -top-1 -right-1 size-2.5 rounded-full bg-primary ring-2 ring-base-100" />}
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-1.5">

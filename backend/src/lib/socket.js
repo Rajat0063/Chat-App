@@ -101,7 +101,7 @@ io.on("connection", async (socket) => {
         const now = new Date();
         await Message.updateMany(
           { senderId: cleanTargetId, receiverId: userId, status: { $ne: "read" } },
-          { $set: { status: "read", readAt: now }, $addToSet: { readBy: userId } }
+          { $set: { status: "read", readAt: now, seen: true, seenAt: now }, $addToSet: { readBy: userId, seenBy: userId } }
         );
 
         const sids = getReceiverSocketIds(cleanTargetId);
@@ -256,7 +256,7 @@ io.on("connection", async (socket) => {
 
       await Message.updateMany(
         { senderId: sId, receiverId: rId, status: { $ne: "read" } },
-        { $set: { status: "read", readAt: now }, $addToSet: { readBy: rId } }
+        { $set: { status: "read", readAt: now, seen: true, seenAt: now }, $addToSet: { readBy: rId, seenBy: rId } }
       );
 
       // Notify the sender

@@ -66,7 +66,10 @@ export const getGroupMessages = async (req, res) => {
     const now = new Date();
     await Message.updateMany(
       { groupId, senderId: { $ne: me } },
-      { $addToSet: { readBy: me, seenBy: me } }
+      {
+        $set: { seen: true, seenAt: now },
+        $addToSet: { readBy: me, seenBy: me },
+      }
     );
 
     // Notify group members
@@ -103,7 +106,10 @@ export const markGroupMessagesAsRead = async (req, res) => {
     const now = new Date();
     await Message.updateMany(
       { groupId, senderId: { $ne: me } },
-      { $addToSet: { readBy: me, seenBy: me } }
+      {
+        $set: { seen: true, seenAt: now },
+        $addToSet: { readBy: me, seenBy: me },
+      }
     );
 
     group.members.forEach((memberId) => {
@@ -140,7 +146,10 @@ export const markGroupMessagesSeen = async (req, res) => {
     const seenAt = new Date();
     await Message.updateMany(
       { groupId, senderId: { $nin: [me, meStr] } },
-      { $addToSet: { seenBy: me, readBy: me } }
+      {
+        $set: { seen: true, seenAt },
+        $addToSet: { readBy: me, seenBy: me },
+      }
     );
 
     group.members.forEach((memberId) => {
