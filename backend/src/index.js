@@ -35,6 +35,10 @@ const isAllowedOrigin = (origin) => {
 
 app.use(express.json({ limit: "10mb" }));
 app.use(cookieParser());
+app.use((req, res, next) => {
+  res.setHeader("Permissions-Policy", "unload=(self)");
+  next();
+});
 app.use(cors({
   origin: (origin, callback) => {
     if (isAllowedOrigin(origin)) {
