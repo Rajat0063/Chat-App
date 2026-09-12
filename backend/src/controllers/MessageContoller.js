@@ -232,6 +232,69 @@ export const deleteConversation = async (req, res) => {
   }
 };
 
+export const toggleMessageReaction = async (req, res) => {
+  try {
+    const { id: messageId } = req.params;
+    const { emoji } = req.body || {};
+    const me = req.user._id;
+    const meStr = (me?._id || me)?.toString();
+
+    if (!messageId || !emoji) {
+      return res.status(400).json({ message: "Message and emoji are required." });
+    }
+
+    const message = await Message.findById(messageId);
+    if (!message) return res.status(404).json({ message: "Message not found" });
+
+    const currentReactions = message.reactions && typeof message.reactions === "object" ? message.reactions : {};
+    const currentUsers = Array.isArray(currentReactions[emoji]) ? currentReactions[emoji] : [];
+    const nextUsers = currentUsers.some((userId) => (userId && userId.toString ? userId.toString() : String(userId)) === meStr)
+      ? currentUsers.filter((userId) => (userId && userId.toString ? userId.toString() : String(userId)) !== meStr)
+      : [...currentUsers, meStr];
+
+    const nextReactions = { ...currentReactions };
+    if (nextUsers.length > 0) {
+      nextReactions[emoji] = nextUsers;
+    } else {
+      delete nextReactions[emoji];
+    }
+
+    message.reactions = nextReactions;
+    await message.save();
+
+    const reactionPayload = {
+      messageId: message._id.toString(),
+      reactions: nextReactions,
+      senderId: message.senderId?.toString ? message.senderId.toString() : String(message.senderId),
+      receiverId: message.receiverId?.toString ? message.receiverId.toString() : message.receiverId ? String(message.receiverId) : null,
+      groupId: message.groupId?.toString ? message.groupId.toString() : message.groupId ? String(message.groupId) : null,
+      reactedBy: meStr,
+      emoji,
+    };
+
+    if (message.groupId) {
+      const group = await Group.findById(message.groupId).catch(() => null);
+      if (group && Array.isArray(group.members)) {
+        group.members.forEach((memberId) => {
+          const sids = getReceiverSocketIds(memberId.toString());
+          sids.forEach((sid) => io.to(sid).emit("messageReactionUpdated", reactionPayload));
+        });
+      }
+    } else {
+      const directParticipants = [message.senderId, message.receiverId].filter(Boolean).map((id) => (id && id.toString ? id.toString() : String(id)));
+      directParticipants.forEach((participantId) => {
+        const sids = getReceiverSocketIds(participantId);
+        sids.forEach((sid) => io.to(sid).emit("messageReactionUpdated", reactionPayload));
+      });
+    }
+
+    res.json({ message: message, reactions: nextReactions });
+  } catch (err) {
+    console.error("toggleMessageReaction:", err.message);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
 export const togglePinMessage = async (req, res) => {
   try {
     const { id: messageId } = req.params;

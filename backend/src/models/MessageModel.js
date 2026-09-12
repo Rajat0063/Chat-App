@@ -16,6 +16,7 @@ const messageSchema = new mongoose.Schema(
     seenAt: { type: Date, default: null },
     seenBy: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
     readBy: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+    reactions: { type: Object, default: {} },
     deletedFor: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
     isPinned: { type: Boolean, default: false },
     pinnedAt: { type: Date, default: null },

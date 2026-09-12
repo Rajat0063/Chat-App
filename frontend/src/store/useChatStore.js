@@ -107,6 +107,49 @@ export const useChatStore = create((set, get) => ({
   clearUnreadCount: (id) => set((state) => ({
     unreadCounts: { ...state.unreadCounts, [toIdStr(id)]: 0 },
   })),
+  updateMessageReactions: (messageId, reactions) => set((state) => {
+    const nextMessages = (Array.isArray(state.messages) ? state.messages : []).map((message) => {
+      const currentId = toIdStr(message._id || message.clientTempId);
+      const targetId = toIdStr(messageId);
+      return currentId === targetId ? { ...message, reactions: reactions || {} } : message;
+    });
+
+    const nextConversationMessages = Object.fromEntries(Object.entries(state.conversationMessages || {}).map(([key, items]) => {
+      const mapped = Array.isArray(items) ? items.map((message) => {
+        const currentId = toIdStr(message._id || message.clientTempId);
+        const targetId = toIdStr(messageId);
+        return currentId === targetId ? { ...message, reactions: reactions || {} } : message;
+      }) : items;
+      return [key, mapped];
+    }));
+
+    return {
+      messages: nextMessages,
+      conversationMessages: nextConversationMessages,
+    };
+  }),
+  toggleMessageReaction: async (messageId, emoji) => {
+    if (!messageId || !emoji) return;
+    const socket = useAuthStore.getState().socket;
+    const authUser = useAuthStore.getState().authUser;
+    if (!authUser) return;
+
+    try {
+      const res = await axiosInstance.post(`/messages/reaction/${messageId}`, { emoji });
+      const nextReactions = res.data?.reactions || res.data?.message?.reactions || {};
+      get().updateMessageReactions(messageId, nextReactions);
+      if (socket && socket.connected) {
+        socket.emit("messageReactionUpdated", {
+          messageId: toIdStr(messageId),
+          reactions: nextReactions,
+          reactedBy: toIdStr(authUser._id),
+          emoji,
+        });
+      }
+    } catch (err) {
+      toast.error(err?.response?.data?.message || "Failed to add reaction");
+    }
+  },
 
   removeTypingUser: (convId, uId) => {
     set((state) => {
@@ -474,6 +517,12 @@ export const useChatStore = create((set, get) => ({
     socket.off("messagesRead");
     socket.off("messagesDelivered");
     socket.off("groupMessagesRead");
+    socket.off("messageReactionUpdated");
+
+    socket.on("messageReactionUpdated", ({ messageId, reactions }) => {
+      if (!messageId || !reactions) return;
+      get().updateMessageReactions(messageId, reactions);
+    });
 
     socket.on("newMessage", (newMessage) => {
       const authUser = useAuthStore.getState().authUser;

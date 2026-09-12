@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { MessageSquare, Sparkles, Check, CheckCheck, Clock, ChevronDown } from "lucide-react";
+
+const QUICK_REACTIONS = ["❤️", "👍", "😂", "🎉"];
 import ChatHeader from "./ChatHeader.jsx";
 import MessageInput from "./MessageInput.jsx";
 import MessageSkeleton from "./skeletons/MessageSkeleton.jsx";
@@ -22,6 +24,7 @@ export default function ChatContainer() {
     subscribeToGroupMessages,
     markMessagesAsRead,
     markGroupMessagesAsRead,
+    toggleMessageReaction,
     isChatSearchOpen,
     chatSearchQuery,
     setChatSearchOpen,
@@ -34,6 +37,8 @@ export default function ChatContainer() {
   const activeGroupId = toIdStr(selectedGroup?._id);
   const messageList = Array.isArray(messages) ? messages : [];
   const [currentMatchIndex, setCurrentMatchIndex] = useState(0);
+  const [reactionPickerFor, setReactionPickerFor] = useState(null);
+  const longPressTimer = useRef(null);
   const matchingMessages = useMemo(() => {
     const query = chatSearchQuery.trim().toLowerCase();
     if (!query) return [];
@@ -82,6 +87,33 @@ export default function ChatContainer() {
   const handleCloseSearch = () => {
     setChatSearchOpen(false);
     setChatSearchQuery("");
+  };
+
+  const openReactionPicker = (messageId) => {
+    setReactionPickerFor((current) => (current === messageId ? null : messageId));
+  };
+
+  const handleReactionPress = (messageId) => {
+    openReactionPicker(messageId);
+  };
+
+  const handleMessageLongPress = (messageId) => {
+    if (longPressTimer.current) clearTimeout(longPressTimer.current);
+    longPressTimer.current = setTimeout(() => {
+      openReactionPicker(messageId);
+    }, 350);
+  };
+
+  const cancelLongPress = () => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+  };
+
+  const handleReactionClick = (messageId, emoji) => {
+    toggleMessageReaction(messageId, emoji);
+    setReactionPickerFor(null);
   };
 
   const scrollToBottom = useCallback((behavior = "smooth") => {
@@ -393,6 +425,9 @@ export default function ChatContainer() {
               && m.text?.toLowerCase().includes(chatSearchQuery.trim().toLowerCase());
             const isCurrentSearchMatch = isSearchMatch && currentMatch?._id === m._id;
 
+            const reactionMap = m.reactions && typeof m.reactions === "object" ? m.reactions : {};
+            const reactionEntries = Object.entries(reactionMap).filter(([emoji, users]) => Array.isArray(users) && users.length > 0);
+
             return (
               <div id={`msg-${m._id || m.clientTempId}`} key={m._id || m.clientTempId} className={`chat ${mine ? "chat-end" : "chat-start"} animate-in fade-in duration-200`}>
                 <div className="chat-image avatar">
@@ -408,39 +443,84 @@ export default function ChatContainer() {
                   {!mine && <time>{formatMessageTime(m.createdAt)}</time>}
                 </div>
 
-                <div
-                  className={`chat-bubble flex flex-col gap-2 max-w-[85%] sm:max-w-[75%] break-words shadow-sm ${
-                    mine
-                      ? "bg-primary text-primary-content rounded-2xl rounded-tr-xs"
-                      : "bg-base-200/90 text-base-content border border-base-300/80 rounded-2xl rounded-tl-xs"
-                  } ${isCurrentSearchMatch
-                    ? "ring-4 ring-amber-400 ring-offset-2 ring-offset-base-100 scale-[1.02] shadow-xl"
-                    : isSearchMatch
-                      ? "ring-2 ring-amber-300/70 shadow-md"
-                      : ""}`}
-                >
-                  {m.image && (
-                    <div className="relative group overflow-hidden rounded-xl">
-                      <img
-                        src={m.image}
-                        alt="Attachment"
-                        onLoad={() => {
-                          if (!isScrolledUpRef.current) {
-                            scrollToBottom("auto");
-                          }
-                        }}
-                        className="w-full max-w-md object-cover rounded-xl transition-transform duration-200 group-hover:scale-[1.01]"
-                      />
+                <div className="relative">
+                  <div
+                    onPointerDown={() => handleMessageLongPress(m._id || m.clientTempId)}
+                    onPointerUp={cancelLongPress}
+                    onPointerLeave={cancelLongPress}
+                    onPointerCancel={cancelLongPress}
+                    onContextMenu={(event) => {
+                      event.preventDefault();
+                      openReactionPicker(m._id || m.clientTempId);
+                    }}
+                    className={`chat-bubble flex flex-col gap-2 max-w-[85%] sm:max-w-[75%] break-all shadow-sm cursor-pointer select-none ${
+                      mine
+                        ? "bg-primary text-primary-content rounded-2xl rounded-tr-xs"
+                        : "bg-base-200/90 text-base-content border border-base-300/80 rounded-2xl rounded-tl-xs"
+                    } ${isCurrentSearchMatch
+                      ? "ring-4 ring-amber-400 ring-offset-2 ring-offset-base-100 scale-[1.02] shadow-xl"
+                      : isSearchMatch
+                        ? "ring-2 ring-amber-300/70 shadow-md"
+                        : ""}`}
+                  >
+                    {m.image && (
+                      <div className="relative group overflow-hidden rounded-xl">
+                        <img
+                          src={m.image}
+                          alt="Attachment"
+                          onLoad={() => {
+                            if (!isScrolledUpRef.current) {
+                              scrollToBottom("auto");
+                            }
+                          }}
+                          className="w-full max-w-md object-cover rounded-xl transition-transform duration-200 group-hover:scale-[1.01]"
+                        />
+                      </div>
+                    )}
+                    {m.text && (
+                      <p className="text-sm leading-relaxed break-all">
+                        <HighlightedText
+                          text={m.text}
+                          query={isChatSearchOpen ? chatSearchQuery : ""}
+                          isCurrentMatch={currentMatch?._id === m._id}
+                        />
+                      </p>
+                    )}
+                  </div>
+
+                  {reactionEntries.length > 0 && (
+                    <div className={`absolute -bottom-3 ${mine ? "right-3" : "left-3"} flex flex-wrap items-center gap-1.5 rounded-full border border-base-300 bg-base-100/95 px-1.5 py-1 shadow-sm`}>
+                      {reactionEntries.map(([emoji, users]) => {
+                        const hasCurrentUser = Array.isArray(users) && users.some((userId) => toIdStr(userId) === toIdStr(authUser?._id));
+                        return (
+                          <button
+                            key={emoji}
+                            type="button"
+                            onClick={() => handleReactionClick(m._id || m.clientTempId, emoji)}
+                            className={`flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[11px] font-medium transition ${hasCurrentUser ? "bg-primary/10 text-primary" : "bg-base-200 text-base-content/80"}`}
+                          >
+                            <span>{emoji}</span>
+                            <span>{users.length}</span>
+                          </button>
+                        );
+                      })}
                     </div>
                   )}
-                  {m.text && (
-                    <p className="text-sm leading-relaxed break-words">
-                      <HighlightedText
-                        text={m.text}
-                        query={isChatSearchOpen ? chatSearchQuery : ""}
-                        isCurrentMatch={currentMatch?._id === m._id}
-                      />
-                    </p>
+
+                  {reactionPickerFor === (m._id || m.clientTempId) && (
+                    <div className={`absolute z-20 -top-12 ${mine ? "right-0" : "left-0"} flex items-center gap-1 rounded-full border border-base-300 bg-base-100/95 p-1.5 shadow-lg backdrop-blur-md`}>
+                      {QUICK_REACTIONS.map((emoji) => (
+                        <button
+                          key={emoji}
+                          type="button"
+                          onClick={() => handleReactionClick(m._id || m.clientTempId, emoji)}
+                          className="h-8 w-8 rounded-full text-lg leading-none transition hover:scale-110 active:scale-95 hover:bg-base-200"
+                          aria-label={`React with ${emoji}`}
+                        >
+                          {emoji}
+                        </button>
+                      ))}
+                    </div>
                   )}
                 </div>
 
