@@ -63,6 +63,10 @@ export default function ChatContainer() {
     document.getElementById(`msg-${currentMatch._id}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
   }, [currentMatch, isChatSearchOpen]);
 
+  const closeReactionPicker = useCallback(() => {
+    setReactionPickerFor(null);
+  }, []);
+
   useEffect(() => {
     closeReactionPicker();
   }, [activeUserId, activeGroupId, closeReactionPicker]);
@@ -107,10 +111,6 @@ export default function ChatContainer() {
     setChatSearchOpen(false);
     setChatSearchQuery("");
   };
-
-  const closeReactionPicker = useCallback(() => {
-    setReactionPickerFor(null);
-  }, []);
 
   const openReactionPicker = (messageId) => {
     setReactionPickerFor((current) => (current === messageId ? null : messageId));
