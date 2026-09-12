@@ -434,6 +434,159 @@ export const useChatStore = create((set, get) => ({
     } catch {}
   },
 
+  initGlobalSocketListeners: () => {
+    const socket = useAuthStore.getState().socket;
+    if (!socket) return;
+
+    socket.off("newMessage");
+    socket.off("newGroupMessage");
+    socket.off("userTyping");
+    socket.off("userStopTyping");
+    socket.off("messagesRead");
+    socket.off("messagesDelivered");
+    socket.off("groupMessagesRead");
+
+    socket.on("newMessage", (newMessage) => {
+      const authUser = useAuthStore.getState().authUser;
+      const myId = toIdStr(authUser?._id);
+      const selectedUser = get().selectedUser;
+      const selectedId = selectedUser ? toIdStr(selectedUser._id) : "";
+      const msgSenderId = toIdStr(newMessage.senderId);
+      const msgReceiverId = toIdStr(newMessage.receiverId);
+
+      if (!myId) return;
+      const isForMe = msgReceiverId === myId;
+      const isFromMe = msgSenderId === myId;
+      if (!isForMe && !isFromMe) return;
+
+      const conversationId = isFromMe ? msgReceiverId : msgSenderId;
+      const isSelectedConversation = !!selectedId && selectedId === conversationId;
+      const targetKey = getConversationKey("user", conversationId);
+      const existingMessages = Array.isArray(get().conversationMessages[targetKey]) ? get().conversationMessages[targetKey] : [];
+      const nextMessages = appendUniqueMessage(existingMessages, newMessage);
+
+      set((state) => ({
+        conversationMessages: {
+          ...state.conversationMessages,
+          [targetKey]: nextMessages,
+        },
+        messages: isSelectedConversation ? nextMessages : state.messages,
+      }));
+
+      if (isSelectedConversation) {
+        get().clearUnreadCount(selectedId);
+        return;
+      }
+
+      if (isForMe && !isFromMe) {
+        const currentCount = Number(get().unreadCounts[msgSenderId] || 0);
+        get().setUnreadCount(msgSenderId, currentCount + 1);
+      }
+    });
+
+    socket.on("newGroupMessage", (newMessage) => {
+      const authUser = useAuthStore.getState().authUser;
+      const myId = toIdStr(authUser?._id);
+      const selectedGroup = get().selectedGroup;
+      const selectedGroupId = selectedGroup ? toIdStr(selectedGroup._id) : "";
+      const msgGroupId = toIdStr(newMessage.groupId);
+      const msgSenderId = toIdStr(newMessage.senderId);
+
+      if (!myId || !msgGroupId || !msgSenderId) return;
+      const isFromMe = msgSenderId === myId;
+      const isSelectedGroup = !!selectedGroupId && selectedGroupId === msgGroupId;
+      if (isSelectedGroup) {
+        get().clearUnreadCount(msgGroupId);
+        const key = getConversationKey("group", msgGroupId);
+        const nextMessages = appendUniqueMessage(get().messages, newMessage);
+        set((state) => ({
+          messages: nextMessages,
+          conversationMessages: { ...state.conversationMessages, [key]: nextMessages },
+        }));
+        return;
+      }
+
+      if (!isFromMe) {
+        const currentCount = Number(get().unreadCounts[msgGroupId] || 0);
+        get().setUnreadCount(msgGroupId, currentCount + 1);
+      }
+
+      const key = getConversationKey("group", msgGroupId);
+      const existing = Array.isArray(get().conversationMessages[key]) ? get().conversationMessages[key] : [];
+      const nextMessages = appendUniqueMessage(existing, newMessage);
+      set((state) => ({
+        conversationMessages: { ...state.conversationMessages, [key]: nextMessages },
+      }));
+    });
+
+    socket.on("userTyping", (payload) => {
+      get().handleIncomingUserTyping(payload);
+    });
+
+    socket.on("userStopTyping", (payload) => {
+      get().handleIncomingUserStopTyping(payload);
+    });
+
+    socket.on("messagesRead", ({ readerId, readAt }) => {
+      const selectedUser = get().selectedUser;
+      const authUser = useAuthStore.getState().authUser;
+      if (!selectedUser || !authUser) return;
+
+      const cId = toIdStr(selectedUser._id);
+      const rId = toIdStr(readerId);
+      if (cId !== rId) return;
+
+      const myId = toIdStr(authUser._id);
+      const updatedMessages = get().messages.map((m) => {
+        const mSender = toIdStr(m.senderId);
+        if (mSender === myId) {
+          return { ...m, status: "read", readAt: readAt || m.readAt || new Date().toISOString() };
+        }
+        return m;
+      });
+      set({ messages: updatedMessages });
+    });
+
+    socket.on("messagesDelivered", ({ receiverId, deliveredAt }) => {
+      const selectedUser = get().selectedUser;
+      const authUser = useAuthStore.getState().authUser;
+      if (!selectedUser || !authUser) return;
+
+      const cId = toIdStr(selectedUser._id);
+      const rId = toIdStr(receiverId);
+      if (cId !== rId) return;
+
+      const myId = toIdStr(authUser._id);
+      const updatedMessages = get().messages.map((m) => {
+        const mSender = toIdStr(m.senderId);
+        if (mSender === myId && m.status === "sent") {
+          return { ...m, status: "delivered", deliveredAt: deliveredAt || m.deliveredAt || new Date().toISOString() };
+        }
+        return m;
+      });
+      set({ messages: updatedMessages });
+    });
+
+    socket.on("groupMessagesRead", ({ groupId, readerId }) => {
+      const selectedGroup = get().selectedGroup;
+      if (!selectedGroup) return;
+      const currentGroupId = toIdStr(selectedGroup._id);
+      const evGroupId = toIdStr(groupId);
+      if (currentGroupId !== evGroupId) return;
+
+      const rId = toIdStr(readerId);
+      const updatedMessages = get().messages.map((m) => {
+        const readBy = Array.isArray(m.readBy) ? m.readBy : [];
+        if (!readBy.some((id) => toIdStr(id) === rId)) {
+          const newReadBy = [...readBy, readerId];
+          return { ...m, readBy: newReadBy, status: newReadBy.length > 1 ? "read" : m.status };
+        }
+        return m;
+      });
+      set({ messages: updatedMessages });
+    });
+  },
+
   subscribeToMessages: () => {
     const { selectedUser } = get();
     if (!selectedUser) return;
