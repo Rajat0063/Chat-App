@@ -136,7 +136,9 @@ export default function ChatHeader() {
 
   const groupMemberIds = new Set((selectedGroup?.members || []).map((member) => typeof member === "string" ? member : member._id?.toString()));
   const availableUsers = users.filter((user) => !groupMemberIds.has(user._id?.toString()));
-  const pendingJoinRequests = (selectedGroup?.joinRequests || []).filter((entry) => String(entry?.status || "").toLowerCase() === "pending");
+  const pendingJoinRequests = Array.isArray(selectedGroup?.joinRequests)
+    ? (selectedGroup.joinRequests || []).filter((entry) => String(entry?.status || "").toLowerCase() === "pending")
+    : (Number(selectedGroup?.pendingRequestsCount || 0) > 0 ? [] : []);
 
   useEffect(() => {
     if (!menuOpen) return setMenuPos(null);

@@ -63,7 +63,10 @@ const Sidebar = React.memo(function Sidebar() {
     if (!isMember) return sum;
 
     const isOwner = Boolean(group?.isOwner);
-    const pendingCount = Number(group?.pendingRequestsCount || 0);
+    const actualPendingCount = Array.isArray(group?.joinRequests)
+      ? group.joinRequests.filter((entry) => String(entry?.status || "").toLowerCase() === "pending").length
+      : 0;
+    const pendingCount = actualPendingCount || Number(group?.pendingRequestsCount || 0);
     const messageCount = getUnread(group);
     const effectiveCount = isOwner && pendingCount > 0 ? pendingCount : messageCount;
     return sum + effectiveCount;
@@ -231,7 +234,10 @@ const Sidebar = React.memo(function Sidebar() {
               const isSelected = toIdStr(selectedGroup?._id) === gId;
               const gTypers = (gId && typingUsers[gId]) || {};
               const gTypingCount = Object.keys(gTypers).length;
-              const pendingRequestCount = Number(g.pendingRequestsCount || 0);
+              const actualPendingRequestCount = Array.isArray(g?.joinRequests)
+                ? g.joinRequests.filter((entry) => String(entry?.status || "").toLowerCase() === "pending").length
+                : 0;
+              const pendingRequestCount = actualPendingRequestCount || Number(g?.pendingRequestsCount || 0);
               const unreadCount = g.isOwner && pendingRequestCount > 0 ? pendingRequestCount : getUnread(g);
               const hasUnread = unreadCount > 0;
               const isMember = Boolean(g.isMember || g.isOwner || (Array.isArray(g.members) && g.members.some((member) => toIdStr(member?._id || member) === myUserId)));

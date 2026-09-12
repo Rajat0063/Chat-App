@@ -33,8 +33,17 @@ const updateReactionMap = (reactions, emoji, userId) => {
   return next;
 };
 
+const sortMessagesByTime = (messages = []) => {
+  if (!Array.isArray(messages)) return [];
+  return [...messages].sort((a, b) => {
+    const timeA = new Date(a?.createdAt || a?.updatedAt || 0).getTime();
+    const timeB = new Date(b?.createdAt || b?.updatedAt || 0).getTime();
+    return timeA - timeB;
+  });
+};
+
 const appendUniqueMessage = (messages, nextMessage) => {
-  if (!nextMessage) return messages;
+  if (!nextMessage) return sortMessagesByTime(messages);
   const list = Array.isArray(messages) ? messages : [];
 
   const nextId = toIdStr(nextMessage._id);
@@ -54,7 +63,6 @@ const appendUniqueMessage = (messages, nextMessage) => {
     const updated = [...list];
     const existing = updated[existsIndex];
 
-    // Preserve status progression: sent -> delivered -> read (never downgrade)
     let finalStatus = nextMessage.status || existing.status || "sent";
     if (existing.status === "read") {
       finalStatus = "read";
@@ -75,10 +83,27 @@ const appendUniqueMessage = (messages, nextMessage) => {
       readBy: combinedReadBy,
       isSending: false,
     };
-    return updated;
+    return sortMessagesByTime(updated);
   }
 
-  return [...list, { ...nextMessage, isSending: false }];
+  return sortMessagesByTime([...list, { ...nextMessage, isSending: false }]);
+};
+
+const mergeConversationMessageSet = (state, conversationKey, incomingMessages, selectedConversationId = "") => {
+  const base = Array.isArray(state.conversationMessages[conversationKey]) ? state.conversationMessages[conversationKey] : [];
+  const merged = appendUniqueMessage(base, incomingMessages);
+  const nextState = {
+    conversationMessages: {
+      ...state.conversationMessages,
+      [conversationKey]: merged,
+    },
+  };
+
+  if (selectedConversationId && selectedConversationId === conversationKey.replace(/^(user|group):/, "")) {
+    nextState.messages = merged;
+  }
+
+  return nextState;
 };
 
 const typingTimeouts = {};
@@ -140,11 +165,11 @@ export const useChatStore = create((set, get) => ({
         const currentId = toIdStr(message._id || message.clientTempId);
         return currentId === targetId ? { ...message, reactions: reactions || {} } : message;
       }) : items;
-      return [key, mapped];
+      return [key, sortMessagesByTime(mapped)];
     }));
 
     return {
-      messages: nextMessages,
+      messages: sortMessagesByTime(nextMessages),
       conversationMessages: nextConversationMessages,
     };
   }),
@@ -160,11 +185,11 @@ export const useChatStore = create((set, get) => ({
         const currentId = toIdStr(message._id || message.clientTempId);
         return currentId === targetId ? { ...message, ...(payload || {}), isPinned: Boolean(payload?.isPinned ?? message.isPinned) } : message;
       }) : items;
-      return [key, mapped];
+      return [key, sortMessagesByTime(mapped)];
     }));
 
     return {
-      messages: nextMessages,
+      messages: sortMessagesByTime(nextMessages),
       conversationMessages: nextConversationMessages,
     };
   }),
@@ -423,12 +448,20 @@ export const useChatStore = create((set, get) => ({
     try {
       const res = await axiosInstance.post(`/groups/${groupId}/join-requests/${userId}`, { action });
       const currentGroups = Array.isArray(get().groups) ? get().groups : [];
+      const updatedGroup = res.data?.group || null;
       const nextGroups = currentGroups.map((group) => {
         if (toIdStr(group._id) !== toIdStr(groupId)) return group;
-        const incomingPendingCount = Number(res.data?.group?.pendingRequestsCount ?? group.pendingRequestsCount ?? 0);
-        return { ...group, ...(res.data?.group || {}), pendingRequestsCount: incomingPendingCount };
+        const mergedGroup = updatedGroup ? { ...group, ...updatedGroup } : group;
+        const actualPendingCount = Array.isArray(mergedGroup.joinRequests)
+          ? mergedGroup.joinRequests.filter((entry) => String(entry?.status || "").toLowerCase() === "pending").length
+          : Number(mergedGroup.pendingRequestsCount || 0);
+        return { ...mergedGroup, pendingRequestsCount: actualPendingCount };
       });
-      set({ groups: nextGroups, selectedGroup: nextGroups.find((group) => toIdStr(group._id) === toIdStr(groupId)) || get().selectedGroup });
+      const selectedGroup = nextGroups.find((group) => toIdStr(group._id) === toIdStr(groupId)) || get().selectedGroup;
+      set({
+        groups: nextGroups,
+        selectedGroup,
+      });
       toast.success(res.data?.message || "Join request updated");
       return res.data;
     } catch (err) {
@@ -850,53 +883,6 @@ export const useChatStore = create((set, get) => ({
     const socket = useAuthStore.getState().socket;
     if (!socket) return;
 
-    socket.off("newMessage");
-    socket.on("newMessage", (newMessage) => {
-      const selected = get().selectedUser;
-      const selectedId = selected ? toIdStr(selected._id) : "";
-      const msgSenderId = toIdStr(newMessage.senderId);
-      const msgReceiverId = toIdStr(newMessage.receiverId);
-      const authUser = useAuthStore.getState().authUser;
-      const myId = toIdStr(authUser?._id);
-
-      const isForMe = msgReceiverId === myId;
-      const isFromMe = msgSenderId === myId;
-      const conversationId = isFromMe ? msgReceiverId : msgSenderId;
-      const isSelectedConversation = !!selectedId && selectedId === conversationId;
-
-      if (!isForMe && !isFromMe) return;
-
-      const currentConversationKey = getConversationKey("user", conversationId);
-      const currentConversationMessages = Array.isArray(get().conversationMessages[currentConversationKey])
-        ? get().conversationMessages[currentConversationKey]
-        : get().messages;
-
-      if (isSelectedConversation) {
-        get().clearUnreadCount(selectedId);
-      } else if (isForMe && !isFromMe) {
-        const currentCount = Number(get().unreadCounts[msgSenderId] || 0);
-        get().setUnreadCount(msgSenderId, currentCount + 1);
-      }
-
-      if (msgSenderId && selectedId && msgSenderId === selectedId) {
-        get().removeTypingUser(selectedId, msgSenderId);
-      }
-
-      const updatedMessages = appendUniqueMessage(currentConversationMessages, newMessage);
-      set((state) => ({
-        messages: isSelectedConversation ? updatedMessages : state.messages,
-        conversationMessages: {
-          ...state.conversationMessages,
-          [currentConversationKey]: updatedMessages,
-        },
-      }));
-
-      if (isSelectedConversation && myId && msgSenderId === selectedId) {
-        socket.emit("markAsRead", { senderId: selectedId, receiverId: myId });
-        try { axiosInstance.post(`/messages/mark-seen/${selectedId}`); } catch {}
-      }
-    });
-
     socket.off("userTyping");
     socket.on("userTyping", (payload) => {
       get().handleIncomingUserTyping(payload);
@@ -955,47 +941,6 @@ export const useChatStore = create((set, get) => ({
     if (!selectedGroup) return;
     const socket = useAuthStore.getState().socket;
     if (!socket) return;
-
-    socket.off("newGroupMessage");
-    socket.on("newGroupMessage", (newMessage) => {
-      const selected = get().selectedGroup;
-      const currentGroupId = selected ? toIdStr(selected._id) : "";
-      const msgGroupId = toIdStr(newMessage.groupId);
-      const msgSenderId = toIdStr(newMessage.senderId);
-      const authUser = useAuthStore.getState().authUser;
-      const myId = toIdStr(authUser?._id);
-
-      if (!msgGroupId) return;
-
-      const isFromMe = msgSenderId === myId;
-      const isInSelectedGroup = !!currentGroupId && currentGroupId === msgGroupId;
-      const isFromOtherGroup = !!msgGroupId && !isFromMe && !isInSelectedGroup;
-
-      if (isInSelectedGroup && !isFromMe) {
-        get().clearUnreadCount(currentGroupId);
-      } else if (isFromOtherGroup) {
-        const currentCount = Number(get().unreadCounts[msgGroupId] || 0);
-        get().setUnreadCount(msgGroupId, currentCount + 1);
-        return;
-      }
-
-      if (msgSenderId && currentGroupId && isInSelectedGroup) {
-        get().removeTypingUser(currentGroupId, msgSenderId);
-      }
-
-      if (!isInSelectedGroup && !isFromMe) return;
-      const updatedMessages = appendUniqueMessage(get().messages, newMessage);
-      const key = getConversationKey("group", currentGroupId);
-      set((state) => ({
-        messages: updatedMessages,
-        conversationMessages: { ...state.conversationMessages, [key]: updatedMessages },
-      }));
-
-      if (myId && !isFromMe && isInSelectedGroup) {
-        socket.emit("markGroupAsRead", { groupId: currentGroupId, readerId: myId });
-        try { axiosInstance.post(`/groups/${currentGroupId}/mark-seen`); } catch {}
-      }
-    });
 
     socket.off("userTyping");
     socket.on("userTyping", (payload) => {
