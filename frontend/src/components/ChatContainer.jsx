@@ -49,6 +49,10 @@ export default function ChatContainer() {
     return messageList.filter((message) => message.text?.toLowerCase().includes(query));
   }, [messageList, chatSearchQuery]);
   const currentMatch = matchingMessages[currentMatchIndex];
+  const pendingJoinRequests = useMemo(() => {
+    if (!selectedGroup || !Array.isArray(selectedGroup.joinRequests)) return [];
+    return selectedGroup.joinRequests.filter((entry) => String(entry?.status || "").toLowerCase() === "pending");
+  }, [selectedGroup]);
   const pinnedMessage = useMemo(() => {
     if (!Array.isArray(messageList)) return null;
     return [...messageList].reverse().find((message) => Boolean(message.isPinned)) || null;
@@ -438,6 +442,50 @@ export default function ChatContainer() {
         onScroll={handleScroll}
         className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-2.5 sm:p-4 md:p-6 space-y-3 sm:space-y-4"
       >
+        {selectedGroup && pendingJoinRequests.length > 0 && (
+          <div className="rounded-2xl border border-primary/20 bg-primary/5 p-3 shadow-sm">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-primary">Join requests</p>
+                <p className="text-xs text-base-content/70">{pendingJoinRequests.length} new request{pendingJoinRequests.length > 1 ? "s" : ""} to review</p>
+              </div>
+            </div>
+            <div className="mt-3 space-y-2">
+              {pendingJoinRequests.map((entry) => {
+                const user = entry?.user;
+                const userId = toIdStr(user?._id || user);
+                const userName = user?.fullName || "New user";
+                const avatar = user?.profilePic || "/avatar.png";
+                return (
+                  <div key={userId} className="flex items-center gap-2.5 rounded-xl border border-base-300/80 bg-base-100/80 p-2">
+                    <img src={avatar} alt={userName} className="size-9 rounded-full border border-base-300 object-cover" />
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-xs font-semibold text-base-content">{userName}</div>
+                      <div className="text-[10px] text-base-content/60">Wants to join this group</div>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => useChatStore.getState().handleJoinRequestDecision(selectedGroup._id, userId, "approve")}
+                        className="btn btn-xs btn-success rounded-lg min-h-7 h-7 px-2"
+                      >
+                        Accept
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => useChatStore.getState().handleJoinRequestDecision(selectedGroup._id, userId, "decline")}
+                        className="btn btn-xs btn-error rounded-lg min-h-7 h-7 px-2"
+                      >
+                        Decline
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {pinnedMessage && (
           <div className="sticky top-0 z-10 mb-2 rounded-2xl border border-primary/20 bg-primary/5 px-3 py-2 shadow-sm backdrop-blur-sm">
             <div className="flex items-center justify-between gap-3">

@@ -109,6 +109,15 @@ const mergeConversationMessageSet = (state, conversationKey, incomingMessages, s
 const typingTimeouts = {};
 const getConversationKey = (type, id) => `${type}:${toIdStr(id)}`;
 
+const getPendingJoinRequestCount = (group) => {
+  if (!group) return 0;
+  const joinRequests = Array.isArray(group.joinRequests) ? group.joinRequests : [];
+  if (joinRequests.length) {
+    return joinRequests.filter((entry) => String(entry?.status || "").toLowerCase() === "pending").length;
+  }
+  return Number(group.pendingRequestsCount || 0);
+};
+
 export const useChatStore = create((set, get) => ({
   messages: [],
   conversationMessages: {},
@@ -263,26 +272,38 @@ export const useChatStore = create((set, get) => ({
   },
   togglePinMessage: async (messageId, duration = "7d") => {
     if (!messageId) return;
+    const currentState = get();
+    const currentCollections = [
+      ...(Array.isArray(currentState.messages) ? currentState.messages : []),
+      ...Object.values(currentState.conversationMessages || {}).flatMap((items) => Array.isArray(items) ? items : []),
+    ];
+    const currentMessage = currentCollections.find((item) => toIdStr(item._id || item.clientTempId) === toIdStr(messageId));
+    const nextPinnedState = !(Boolean(currentMessage?.isPinned) || currentMessage?.pinned === true);
+
+    get().updatePinnedMessage(messageId, { isPinned: nextPinnedState, pinned: nextPinnedState });
+
     try {
-      const res = await axiosInstance.post(`/messages/pin/${messageId}`, { duration });
+      const res = await axiosInstance.post(`/messages/pin/${messageId}`, { duration: nextPinnedState ? duration : "7d" });
       const updatedMessage = res.data?.updatedMessage || res.data?.data || res.data?.message || null;
       if (updatedMessage) {
         get().updatePinnedMessage(messageId, {
           ...updatedMessage,
           isPinned: Boolean(updatedMessage.isPinned),
+          pinned: Boolean(updatedMessage.isPinned),
         });
       }
       if (useAuthStore.getState().socket?.connected) {
         useAuthStore.getState().socket.emit("messagePinUpdated", {
           messageId: toIdStr(messageId),
-          isPinned: Boolean(updatedMessage?.isPinned),
+          isPinned: Boolean(updatedMessage?.isPinned ?? nextPinnedState),
           message: updatedMessage,
           updatedMessage,
         });
       }
-      toast.success(updatedMessage?.isPinned ? "Message pinned." : "Pin removed.");
+      toast.success(nextPinnedState ? "Message pinned." : "Pin removed.");
       return res.data;
     } catch (err) {
+      get().updatePinnedMessage(messageId, { isPinned: Boolean(currentMessage?.isPinned), pinned: Boolean(currentMessage?.isPinned) });
       toast.error(err?.response?.data?.message || "Failed to update pin status");
       return null;
     }
@@ -445,26 +466,53 @@ export const useChatStore = create((set, get) => ({
   },
 
   handleJoinRequestDecision: async (groupId, userId, action) => {
+    const normalizedAction = String(action || "").toLowerCase();
+    const currentGroups = Array.isArray(get().groups) ? get().groups : [];
+    const matchingGroup = currentGroups.find((group) => toIdStr(group._id) === toIdStr(groupId));
+
+    if (matchingGroup) {
+      const optimisticGroup = {
+        ...matchingGroup,
+        joinRequests: Array.isArray(matchingGroup.joinRequests)
+          ? matchingGroup.joinRequests.map((entry) => {
+              const entryUserId = toIdStr(entry?.user?._id || entry?.user);
+              return entryUserId === toIdStr(userId)
+                ? { ...entry, status: normalizedAction === "approve" ? "approved" : "declined" }
+                : entry;
+            })
+          : matchingGroup.joinRequests || [],
+        members: normalizedAction === "approve" && Array.isArray(matchingGroup.members)
+          ? Array.from(new Set([...matchingGroup.members.map((member) => toIdStr(member?._id || member)), toIdStr(userId)]))
+          : matchingGroup.members || [],
+      };
+
+      const nextGroups = currentGroups.map((group) => {
+        if (toIdStr(group._id) !== toIdStr(groupId)) return group;
+        const mergedGroup = { ...optimisticGroup, pendingRequestsCount: getPendingJoinRequestCount(optimisticGroup) };
+        return mergedGroup;
+      });
+      const selectedGroup = nextGroups.find((group) => toIdStr(group._id) === toIdStr(groupId)) || get().selectedGroup;
+      set({ groups: nextGroups, selectedGroup });
+    }
+
     try {
-      const res = await axiosInstance.post(`/groups/${groupId}/join-requests/${userId}`, { action });
-      const currentGroups = Array.isArray(get().groups) ? get().groups : [];
+      const res = await axiosInstance.post(`/groups/${groupId}/join-requests/${userId}`, { action: normalizedAction });
       const updatedGroup = res.data?.group || null;
       const nextGroups = currentGroups.map((group) => {
         if (toIdStr(group._id) !== toIdStr(groupId)) return group;
         const mergedGroup = updatedGroup ? { ...group, ...updatedGroup } : group;
-        const actualPendingCount = Array.isArray(mergedGroup.joinRequests)
-          ? mergedGroup.joinRequests.filter((entry) => String(entry?.status || "").toLowerCase() === "pending").length
-          : Number(mergedGroup.pendingRequestsCount || 0);
-        return { ...mergedGroup, pendingRequestsCount: actualPendingCount };
+        mergedGroup.joinRequests = Array.isArray(updatedGroup?.joinRequests)
+          ? updatedGroup.joinRequests
+          : (Array.isArray(group.joinRequests) ? group.joinRequests : []);
+        mergedGroup.pendingRequestsCount = getPendingJoinRequestCount(mergedGroup);
+        return mergedGroup;
       });
       const selectedGroup = nextGroups.find((group) => toIdStr(group._id) === toIdStr(groupId)) || get().selectedGroup;
-      set({
-        groups: nextGroups,
-        selectedGroup,
-      });
+      set({ groups: nextGroups, selectedGroup });
       toast.success(res.data?.message || "Join request updated");
       return res.data;
     } catch (err) {
+      set({ groups: currentGroups, selectedGroup: matchingGroup || get().selectedGroup });
       toast.error(err?.response?.data?.message || "Failed to update join request");
       return null;
     }
@@ -700,6 +748,23 @@ export const useChatStore = create((set, get) => ({
     socket.off("messageReactionUpdated");
     socket.off("messagePinUpdated");
     socket.off("messageDeleted");
+    socket.off("groupJoinRequestDecision");
+
+    socket.on("groupJoinRequestDecision", ({ groupId, action, status, group }) => {
+      if (!groupId) return;
+      const currentGroups = Array.isArray(get().groups) ? get().groups : [];
+      const nextGroups = currentGroups.map((entry) => {
+        if (toIdStr(entry._id) !== toIdStr(groupId)) return entry;
+        const mergedGroup = { ...entry, ...(group || {}) };
+        if (Array.isArray(group?.joinRequests) && group.joinRequests.length) {
+          mergedGroup.joinRequests = group.joinRequests;
+        }
+        mergedGroup.pendingRequestsCount = getPendingJoinRequestCount(mergedGroup);
+        return mergedGroup;
+      });
+      const selectedGroup = nextGroups.find((group) => toIdStr(group._id) === toIdStr(groupId)) || get().selectedGroup;
+      set({ groups: nextGroups, selectedGroup });
+    });
 
     socket.on("messageDeleted", ({ messageId }) => {
       if (!messageId) return;
