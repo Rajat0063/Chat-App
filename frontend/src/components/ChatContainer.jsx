@@ -64,6 +64,25 @@ export default function ChatContainer() {
   }, [currentMatch, isChatSearchOpen]);
 
   useEffect(() => {
+    closeReactionPicker();
+  }, [activeUserId, activeGroupId, closeReactionPicker]);
+
+  useEffect(() => {
+    const handlePointerDown = (event) => {
+      if (!reactionPickerFor) return;
+      const target = event.target;
+      const isInsidePicker = target instanceof Element && target.closest("[data-reaction-picker]");
+      const isInsideBubble = target instanceof Element && target.closest("[data-message-bubble]");
+      if (!isInsidePicker && !isInsideBubble) {
+        closeReactionPicker();
+      }
+    };
+
+    window.addEventListener("pointerdown", handlePointerDown);
+    return () => window.removeEventListener("pointerdown", handlePointerDown);
+  }, [reactionPickerFor, closeReactionPicker]);
+
+  useEffect(() => {
     const handleKeyDown = (event) => {
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "f") {
         event.preventDefault();
@@ -89,12 +108,12 @@ export default function ChatContainer() {
     setChatSearchQuery("");
   };
 
+  const closeReactionPicker = useCallback(() => {
+    setReactionPickerFor(null);
+  }, []);
+
   const openReactionPicker = (messageId) => {
     setReactionPickerFor((current) => (current === messageId ? null : messageId));
-  };
-
-  const handleReactionPress = (messageId) => {
-    openReactionPicker(messageId);
   };
 
   const handleMessageLongPress = (messageId) => {
@@ -443,53 +462,52 @@ export default function ChatContainer() {
                   {!mine && <time>{formatMessageTime(m.createdAt)}</time>}
                 </div>
 
-                <div className="relative">
-                  <div
-                    onPointerDown={() => handleMessageLongPress(m._id || m.clientTempId)}
-                    onPointerUp={cancelLongPress}
-                    onPointerLeave={cancelLongPress}
-                    onPointerCancel={cancelLongPress}
-                    onContextMenu={(event) => {
-                      event.preventDefault();
-                      openReactionPicker(m._id || m.clientTempId);
-                    }}
-                    className={`chat-bubble flex flex-col gap-2 max-w-[85%] sm:max-w-[75%] break-all shadow-sm cursor-pointer select-none ${
-                      mine
-                        ? "bg-primary text-primary-content rounded-2xl rounded-tr-xs"
-                        : "bg-base-200/90 text-base-content border border-base-300/80 rounded-2xl rounded-tl-xs"
-                    } ${isCurrentSearchMatch
-                      ? "ring-4 ring-amber-400 ring-offset-2 ring-offset-base-100 scale-[1.02] shadow-xl"
-                      : isSearchMatch
-                        ? "ring-2 ring-amber-300/70 shadow-md"
-                        : ""}`}
-                  >
-                    {m.image && (
-                      <div className="relative group overflow-hidden rounded-xl">
-                        <img
-                          src={m.image}
-                          alt="Attachment"
-                          onLoad={() => {
-                            if (!isScrolledUpRef.current) {
-                              scrollToBottom("auto");
-                            }
-                          }}
-                          className="w-full max-w-md object-cover rounded-xl transition-transform duration-200 group-hover:scale-[1.01]"
-                        />
-                      </div>
-                    )}
-                    {m.text && (
-                      <p className="text-sm leading-relaxed break-all">
-                        <HighlightedText
-                          text={m.text}
-                          query={isChatSearchOpen ? chatSearchQuery : ""}
-                          isCurrentMatch={currentMatch?._id === m._id}
-                        />
-                      </p>
-                    )}
-                  </div>
+                <div
+                  data-message-bubble
+                  onPointerDown={() => handleMessageLongPress(m._id || m.clientTempId)}
+                  onPointerUp={cancelLongPress}
+                  onPointerLeave={cancelLongPress}
+                  onPointerCancel={cancelLongPress}
+                  onContextMenu={(event) => {
+                    event.preventDefault();
+                    openReactionPicker(m._id || m.clientTempId);
+                  }}
+                  className={`chat-bubble relative flex flex-col gap-2 max-w-[85%] sm:max-w-[75%] wrap-break-word shadow-sm cursor-pointer select-none ${
+                    mine
+                      ? "bg-primary text-primary-content rounded-2xl rounded-tr-xs"
+                      : "bg-base-200/90 text-base-content border border-base-300/80 rounded-2xl rounded-tl-xs"
+                  } ${isCurrentSearchMatch
+                    ? "ring-4 ring-amber-400 ring-offset-2 ring-offset-base-100 scale-[1.02] shadow-xl"
+                    : isSearchMatch
+                      ? "ring-2 ring-amber-300/70 shadow-md"
+                      : ""}`}
+                >
+                  {m.image && (
+                    <div className="relative group overflow-hidden rounded-xl">
+                      <img
+                        src={m.image}
+                        alt="Attachment"
+                        onLoad={() => {
+                          if (!isScrolledUpRef.current) {
+                            scrollToBottom("auto");
+                          }
+                        }}
+                        className="w-full max-w-md object-cover rounded-xl transition-transform duration-200 group-hover:scale-[1.01]"
+                      />
+                    </div>
+                  )}
+                  {m.text && (
+                    <p className="text-sm leading-relaxed wrap-break-word">
+                      <HighlightedText
+                        text={m.text}
+                        query={isChatSearchOpen ? chatSearchQuery : ""}
+                        isCurrentMatch={currentMatch?._id === m._id}
+                      />
+                    </p>
+                  )}
 
                   {reactionEntries.length > 0 && (
-                    <div className={`absolute -bottom-3 ${mine ? "right-3" : "left-3"} flex flex-wrap items-center gap-1.5 rounded-full border border-base-300 bg-base-100/95 px-1.5 py-1 shadow-sm`}>
+                    <div className="mt-1 flex flex-wrap items-center gap-1.5">
                       {reactionEntries.map(([emoji, users]) => {
                         const hasCurrentUser = Array.isArray(users) && users.some((userId) => toIdStr(userId) === toIdStr(authUser?._id));
                         return (
@@ -497,7 +515,7 @@ export default function ChatContainer() {
                             key={emoji}
                             type="button"
                             onClick={() => handleReactionClick(m._id || m.clientTempId, emoji)}
-                            className={`flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[11px] font-medium transition ${hasCurrentUser ? "bg-primary/10 text-primary" : "bg-base-200 text-base-content/80"}`}
+                            className={`flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[11px] font-medium transition ${hasCurrentUser ? "bg-base-100/15 text-inherit" : "bg-base-100/10 text-inherit"}`}
                           >
                             <span>{emoji}</span>
                             <span>{users.length}</span>
@@ -508,7 +526,7 @@ export default function ChatContainer() {
                   )}
 
                   {reactionPickerFor === (m._id || m.clientTempId) && (
-                    <div className={`absolute z-20 -top-12 ${mine ? "right-0" : "left-0"} flex items-center gap-1 rounded-full border border-base-300 bg-base-100/95 p-1.5 shadow-lg backdrop-blur-md`}>
+                    <div data-reaction-picker className={`absolute z-20 -top-12 ${mine ? "right-0" : "left-0"} flex items-center gap-1 rounded-full border border-base-300 bg-base-100/95 p-1.5 shadow-lg backdrop-blur-md`}>
                       {QUICK_REACTIONS.map((emoji) => (
                         <button
                           key={emoji}
