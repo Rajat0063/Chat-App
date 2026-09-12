@@ -36,16 +36,15 @@ export const getGroupsForUser = async (req, res) => {
       const members = (group.members || []).map((member) => (member?._id || member)?.toString());
       const isMember = members.includes(meStr);
       const isOwner = (group.owner?._id || group.owner)?.toString() === meStr;
-      const joinRequest = (group.joinRequests || []).find((entry) => {
-        const userId = (entry?.user?._id || entry?.user)?.toString();
-        return userId === meStr;
-      });
+      const latestJoinRequest = [...(group.joinRequests || [])]
+        .filter((entry) => (entry?.user?._id || entry?.user)?.toString() === meStr)
+        .sort((a, b) => new Date(b?.requestedAt || b?.updatedAt || 0) - new Date(a?.requestedAt || a?.updatedAt || 0))[0];
       const pendingRequestsCount = isOwner ? (group.joinRequests || []).filter((entry) => String(entry?.status || "").toLowerCase() === "pending").length : 0;
       return {
         ...group.toObject(),
         isMember,
         isOwner,
-        joinRequestStatus: joinRequest?.status || null,
+        joinRequestStatus: latestJoinRequest?.status || null,
         pendingRequestsCount,
       };
     });
@@ -175,19 +174,29 @@ export const requestJoinGroup = async (req, res) => {
     const isMember = (group.members || []).some((member) => member.toString() === meStr);
     if (isMember) return res.status(400).json({ message: "You are already a member of this group" });
 
-    const existingRequest = (group.joinRequests || []).find((entry) => {
-      const userId = (entry?.user?._id || entry?.user)?.toString();
-      return userId === meStr;
-    });
+    const existingRequests = Array.isArray(group.joinRequests) ? group.joinRequests : [];
+    const existingRequest = [...existingRequests]
+      .filter((entry) => (entry?.user?._id || entry?.user)?.toString() === meStr)
+      .sort((a, b) => new Date(b?.requestedAt || b?.updatedAt || 0) - new Date(a?.requestedAt || a?.updatedAt || 0))[0];
 
-    if (existingRequest) {
+    if (existingRequest && existingRequest.status === "pending") {
       return res.status(200).json({
         message: "Join request already pending",
         group: { ...group.toObject(), joinRequestStatus: existingRequest.status },
       });
     }
 
-    group.joinRequests = [...(group.joinRequests || []), { user: me, status: "pending" }];
+    if (existingRequest && existingRequest.status === "approved") {
+      return res.status(400).json({ message: "You are already a member of this group" });
+    }
+
+    if (existingRequest && existingRequest.status === "declined") {
+      existingRequest.status = "pending";
+      existingRequest.requestedAt = new Date();
+    } else {
+      group.joinRequests = [...existingRequests, { user: me, status: "pending", requestedAt: new Date() }];
+    }
+
     await group.save();
 
     const populated = await Group.findById(groupId)
@@ -196,7 +205,7 @@ export const requestJoinGroup = async (req, res) => {
       .populate("joinRequests.user", "fullName profilePic");
 
     res.status(200).json({
-      message: "Join request sent",
+      message: existingRequest?.status === "declined" ? "Join request sent again" : "Join request sent",
       group: { ...populated.toObject(), joinRequestStatus: "pending" },
     });
   } catch (err) {
@@ -222,16 +231,17 @@ export const handleJoinRequestDecision = async (req, res) => {
     const isAdmin = group.owner && group.owner.toString() === me.toString();
     if (!isAdmin) return res.status(403).json({ message: "Only the group admin can manage join requests" });
 
-    const requestEntry = (group.joinRequests || []).find((entry) => {
-      const entryUserId = (entry?.user?._id || entry?.user)?.toString();
-      return entryUserId === userId.toString();
-    });
+    const requestEntries = Array.isArray(group.joinRequests) ? group.joinRequests : [];
+    const requestEntry = [...requestEntries]
+      .filter((entry) => (entry?.user?._id || entry?.user)?.toString() === userId.toString())
+      .sort((a, b) => new Date(b?.requestedAt || b?.updatedAt || 0) - new Date(a?.requestedAt || a?.updatedAt || 0))[0];
 
     if (!requestEntry) {
       return res.status(404).json({ message: "Join request not found" });
     }
 
     requestEntry.status = normalizedAction === "approve" ? "approved" : "declined";
+    requestEntry.requestedAt = requestEntry.requestedAt || new Date();
 
     if (normalizedAction === "approve") {
       const memberSet = new Set((group.members || []).map((member) => member.toString()));

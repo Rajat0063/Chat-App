@@ -449,12 +449,29 @@ export const useChatStore = create((set, get) => ({
   },
 
   requestJoinGroup: async (groupId) => {
+    const authUser = useAuthStore.getState().authUser;
+    const myUserId = toIdStr(authUser?._id);
     try {
       const res = await axiosInstance.post(`/groups/${groupId}/request-join`);
       const currentGroups = Array.isArray(get().groups) ? get().groups : [];
       const nextGroups = currentGroups.map((group) => {
         if (toIdStr(group._id) !== toIdStr(groupId)) return group;
-        return { ...group, joinRequestStatus: "pending", isMember: false };
+        const nextJoinRequests = Array.isArray(group.joinRequests)
+          ? group.joinRequests.map((entry) => {
+              const entryUserId = toIdStr(entry?.user?._id || entry?.user);
+              return entryUserId === myUserId ? { ...entry, status: "pending", requestedAt: new Date().toISOString() } : entry;
+            })
+          : [];
+        const hasExistingUserEntry = nextJoinRequests.some((entry) => toIdStr(entry?.user?._id || entry?.user) === myUserId);
+        return {
+          ...group,
+          joinRequestStatus: "pending",
+          isMember: false,
+          joinRequests: hasExistingUserEntry ? nextJoinRequests : [...nextJoinRequests, { user: authUser, status: "pending", requestedAt: new Date().toISOString() }],
+          pendingRequestsCount: Array.isArray(group.joinRequests)
+            ? group.joinRequests.filter((entry) => String(entry?.status || "").toLowerCase() === "pending").length
+            : 0,
+        };
       });
       set({ groups: nextGroups });
       toast.success(res.data?.message || "Join request sent");
