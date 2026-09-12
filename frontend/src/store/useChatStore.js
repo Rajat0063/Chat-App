@@ -66,6 +66,7 @@ const getConversationKey = (type, id) => `${type}:${toIdStr(id)}`;
 export const useChatStore = create((set, get) => ({
   messages: [],
   conversationMessages: {},
+  conversationLoaded: {},
   users: [],
   groups: [],
   selectedUser: null,
@@ -264,7 +265,8 @@ export const useChatStore = create((set, get) => ({
   getMessages: async (userId) => {
     const key = getConversationKey("user", userId);
     const cached = get().conversationMessages[key];
-    if (Array.isArray(cached) && cached.length > 0) {
+    const isLoaded = Boolean(get().conversationLoaded[key]);
+    if (isLoaded && Array.isArray(cached)) {
       set({ messages: cached });
       return cached;
     }
@@ -276,6 +278,7 @@ export const useChatStore = create((set, get) => ({
       set((state) => ({
         messages: toIdStr(state.selectedUser?._id) === toIdStr(userId) ? nextMessages : state.messages,
         conversationMessages: { ...state.conversationMessages, [key]: nextMessages },
+        conversationLoaded: { ...state.conversationLoaded, [key]: true },
       }));
       return nextMessages;
     } catch (err) {
@@ -288,7 +291,8 @@ export const useChatStore = create((set, get) => ({
   getGroupMessages: async (groupId) => {
     const key = getConversationKey("group", groupId);
     const cached = get().conversationMessages[key];
-    if (Array.isArray(cached) && cached.length > 0) {
+    const isLoaded = Boolean(get().conversationLoaded[key]);
+    if (isLoaded && Array.isArray(cached)) {
       set({ messages: cached });
       return cached;
     }
@@ -300,6 +304,7 @@ export const useChatStore = create((set, get) => ({
       set((state) => ({
         messages: toIdStr(state.selectedGroup?._id) === toIdStr(groupId) ? nextMessages : state.messages,
         conversationMessages: { ...state.conversationMessages, [key]: nextMessages },
+        conversationLoaded: { ...state.conversationLoaded, [key]: true },
       }));
       return nextMessages;
     } catch (err) {
@@ -810,17 +815,23 @@ export const useChatStore = create((set, get) => ({
     get().sendTypingStop();
     const socket = useAuthStore.getState().socket;
     const nextUserId = user ? toIdStr(user._id) : "";
+    const key = getConversationKey("user", nextUserId);
     set((state) => ({
       selectedUser: user,
       selectedGroup: null,
-      messages: user ? (state.conversationMessages[getConversationKey("user", nextUserId)] ?? []) : [],
+      messages: user ? (state.conversationMessages[key] ?? []) : [],
     }));
     if (user) {
       get().clearUnreadCount(nextUserId);
       if (socket && socket.connected) {
         socket.emit("enterChat", { type: "direct", id: nextUserId });
       }
-      get().getMessages(nextUserId);
+      const shouldFetch = !get().conversationLoaded[key];
+      if (shouldFetch) {
+        get().getMessages(nextUserId);
+      } else if (get().conversationMessages[key]) {
+        set({ messages: get().conversationMessages[key] });
+      }
       get().markMessagesAsRead(nextUserId);
     } else {
       if (socket && socket.connected) {
@@ -832,17 +843,23 @@ export const useChatStore = create((set, get) => ({
     get().sendTypingStop();
     const socket = useAuthStore.getState().socket;
     const nextGroupId = group ? toIdStr(group._id) : "";
+    const key = getConversationKey("group", nextGroupId);
     set((state) => ({
       selectedGroup: group,
       selectedUser: null,
-      messages: group ? (state.conversationMessages[getConversationKey("group", nextGroupId)] ?? []) : [],
+      messages: group ? (state.conversationMessages[key] ?? []) : [],
     }));
     if (group) {
       get().clearUnreadCount(nextGroupId);
       if (socket && socket.connected) {
         socket.emit("enterChat", { type: "group", id: nextGroupId });
       }
-      get().getGroupMessages(nextGroupId);
+      const shouldFetch = !get().conversationLoaded[key];
+      if (shouldFetch) {
+        get().getGroupMessages(nextGroupId);
+      } else if (get().conversationMessages[key]) {
+        set({ messages: get().conversationMessages[key] });
+      }
       get().markGroupMessagesAsRead(nextGroupId);
     } else {
       if (socket && socket.connected) {
