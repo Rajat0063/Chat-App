@@ -264,7 +264,7 @@ export const useChatStore = create((set, get) => ({
   getMessages: async (userId) => {
     const key = getConversationKey("user", userId);
     const cached = get().conversationMessages[key];
-    if (cached && Array.isArray(cached)) {
+    if (Array.isArray(cached) && cached.length > 0) {
       set({ messages: cached });
       return cached;
     }
@@ -288,7 +288,7 @@ export const useChatStore = create((set, get) => ({
   getGroupMessages: async (groupId) => {
     const key = getConversationKey("group", groupId);
     const cached = get().conversationMessages[key];
-    if (cached && Array.isArray(cached)) {
+    if (Array.isArray(cached) && cached.length > 0) {
       set({ messages: cached });
       return cached;
     }
@@ -404,13 +404,25 @@ export const useChatStore = create((set, get) => ({
 
   markMessagesAsRead: async (userId) => {
     if (!userId) return;
-    get().clearUnreadCount(userId);
-    const socket = useAuthStore.getState().socket;
+
     const authUser = useAuthStore.getState().authUser;
     const cleanUserId = toIdStr(userId);
     const cleanAuthUserId = toIdStr(authUser?._id);
+    if (!cleanAuthUserId || !cleanUserId) return;
 
-    if (socket && socket.connected && cleanAuthUserId) {
+    const hasUnreadMessages = (Array.isArray(get().messages) ? get().messages : []).some((message) => {
+      const senderId = toIdStr(message.senderId);
+      const receiverId = toIdStr(message.receiverId);
+      return senderId === cleanUserId && receiverId === cleanAuthUserId && message.status !== "read";
+    });
+
+    if (!hasUnreadMessages) return;
+    if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
+
+    get().clearUnreadCount(userId);
+    const socket = useAuthStore.getState().socket;
+
+    if (socket && socket.connected) {
       socket.emit("markAsRead", { senderId: cleanUserId, receiverId: cleanAuthUserId });
     }
     try {
@@ -420,13 +432,25 @@ export const useChatStore = create((set, get) => ({
 
   markGroupMessagesAsRead: async (groupId) => {
     if (!groupId) return;
-    get().clearUnreadCount(groupId);
-    const socket = useAuthStore.getState().socket;
+
     const authUser = useAuthStore.getState().authUser;
     const cleanGroupId = toIdStr(groupId);
     const cleanAuthUserId = toIdStr(authUser?._id);
+    if (!cleanAuthUserId || !cleanGroupId) return;
 
-    if (socket && socket.connected && cleanAuthUserId) {
+    const hasUnreadMessages = (Array.isArray(get().messages) ? get().messages : []).some((message) => {
+      const senderId = toIdStr(message.senderId);
+      const msgGroupId = toIdStr(message.groupId);
+      return msgGroupId === cleanGroupId && senderId !== cleanAuthUserId && !((Array.isArray(message.readBy) ? message.readBy : []).some((id) => toIdStr(id) === cleanAuthUserId));
+    });
+
+    if (!hasUnreadMessages) return;
+    if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
+
+    get().clearUnreadCount(groupId);
+    const socket = useAuthStore.getState().socket;
+
+    if (socket && socket.connected) {
       socket.emit("markGroupAsRead", { groupId: cleanGroupId, readerId: cleanAuthUserId });
     }
     try {
@@ -796,10 +820,8 @@ export const useChatStore = create((set, get) => ({
       if (socket && socket.connected) {
         socket.emit("enterChat", { type: "direct", id: nextUserId });
       }
+      get().getMessages(nextUserId);
       get().markMessagesAsRead(nextUserId);
-      if (!get().conversationMessages[getConversationKey("user", nextUserId)]) {
-        get().getMessages(nextUserId);
-      }
     } else {
       if (socket && socket.connected) {
         socket.emit("leaveChat");
@@ -820,10 +842,8 @@ export const useChatStore = create((set, get) => ({
       if (socket && socket.connected) {
         socket.emit("enterChat", { type: "group", id: nextGroupId });
       }
+      get().getGroupMessages(nextGroupId);
       get().markGroupMessagesAsRead(nextGroupId);
-      if (!get().conversationMessages[getConversationKey("group", nextGroupId)]) {
-        get().getGroupMessages(nextGroupId);
-      }
     } else {
       if (socket && socket.connected) {
         socket.emit("leaveChat");
