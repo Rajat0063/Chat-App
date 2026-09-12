@@ -26,16 +26,6 @@ const appendUniqueMessage = (messages, nextMessage) => {
     if (nextId && mId === nextId) return true;
     if (nextTempId && (mTempId === nextTempId || mId === nextTempId)) return true;
     if (mTempId && nextId && mTempId === nextId) return true;
-
-    // Strict deduplication for duplicate text sent by same user within 3 seconds
-    if (m.text && nextMessage.text && m.text.trim() === nextMessage.text.trim()) {
-      const mSender = toIdStr(m.senderId);
-      const nSender = toIdStr(nextMessage.senderId);
-      if (mSender && nSender && mSender === nSender) {
-        const timeDiff = Math.abs(new Date(m.createdAt || Date.now()).getTime() - new Date(nextMessage.createdAt || Date.now()).getTime());
-        if (timeDiff < 3000) return true;
-      }
-    }
     return false;
   });
 
@@ -461,31 +451,35 @@ export const useChatStore = create((set, get) => ({
 
       const isForMe = msgReceiverId === myId;
       const isFromMe = msgSenderId === myId;
-      const isSelectedConversation = !!selectedId && ((msgSenderId === selectedId && msgReceiverId === myId) || (msgSenderId === myId && msgReceiverId === selectedId));
-      const isOtherConversation = isForMe && !isFromMe && !!selectedId && msgSenderId !== selectedId;
+      const conversationId = isFromMe ? msgReceiverId : msgSenderId;
+      const isSelectedConversation = !!selectedId && selectedId === conversationId;
 
       if (!isForMe && !isFromMe) return;
 
+      const currentConversationKey = getConversationKey("user", conversationId);
+      const currentConversationMessages = Array.isArray(get().conversationMessages[currentConversationKey])
+        ? get().conversationMessages[currentConversationKey]
+        : get().messages;
+
       if (isSelectedConversation) {
         get().clearUnreadCount(selectedId);
-      } else if (isOtherConversation) {
+      } else if (isForMe && !isFromMe) {
         const currentCount = Number(get().unreadCounts[msgSenderId] || 0);
         get().setUnreadCount(msgSenderId, currentCount + 1);
-        return;
       }
 
       if (msgSenderId && selectedId && msgSenderId === selectedId) {
         get().removeTypingUser(selectedId, msgSenderId);
       }
 
-      if (isSelectedConversation) {
-        const updatedMessages = appendUniqueMessage(get().messages, newMessage);
-        const key = getConversationKey("user", selectedId);
-        set((state) => ({
-          messages: updatedMessages,
-          conversationMessages: { ...state.conversationMessages, [key]: updatedMessages },
-        }));
-      }
+      const updatedMessages = appendUniqueMessage(currentConversationMessages, newMessage);
+      set((state) => ({
+        messages: isSelectedConversation ? updatedMessages : state.messages,
+        conversationMessages: {
+          ...state.conversationMessages,
+          [currentConversationKey]: updatedMessages,
+        },
+      }));
 
       if (isSelectedConversation && myId && msgSenderId === selectedId) {
         socket.emit("markAsRead", { senderId: selectedId, receiverId: myId });
