@@ -40,17 +40,24 @@ export const getGroupsForUser = async (req, res) => {
         const userId = (entry?.user?._id || entry?.user)?.toString();
         return userId === meStr;
       });
+      const pendingRequestsCount = isOwner ? (group.joinRequests || []).filter((entry) => String(entry?.status || "").toLowerCase() === "pending").length : 0;
       return {
         ...group.toObject(),
         isMember,
         isOwner,
         joinRequestStatus: joinRequest?.status || null,
+        pendingRequestsCount,
       };
     });
 
-    const groupIds = (groups || []).map((g) => g._id);
+    const memberGroupIds = new Set(
+      (visibleGroups || [])
+        .filter((group) => group.isMember)
+        .map((group) => (group._id?._id || group._id)?.toString())
+    );
+
     const unreadGroupMessages = await Message.find({
-      groupId: { $in: groupIds },
+      groupId: { $in: Array.from(memberGroupIds) },
       senderId: { $nin: [me, meStr] },
       seenBy: { $nin: [me, meStr] },
       deletedFor: { $nin: [me, meStr] },
@@ -194,6 +201,69 @@ export const requestJoinGroup = async (req, res) => {
     });
   } catch (err) {
     console.log("requestJoinGroup:", err.message);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+export const handleJoinRequestDecision = async (req, res) => {
+  try {
+    const me = req.user._id;
+    const { id: groupId, userId } = req.params;
+    const { action } = req.body || {};
+    const normalizedAction = String(action || "").toLowerCase();
+
+    if (!["approve", "decline"].includes(normalizedAction)) {
+      return res.status(400).json({ message: "Invalid action" });
+    }
+
+    const group = await Group.findById(groupId).populate("joinRequests.user", "fullName profilePic");
+    if (!group) return res.status(404).json({ message: "Group not found" });
+
+    const isAdmin = group.owner && group.owner.toString() === me.toString();
+    if (!isAdmin) return res.status(403).json({ message: "Only the group admin can manage join requests" });
+
+    const requestEntry = (group.joinRequests || []).find((entry) => {
+      const entryUserId = (entry?.user?._id || entry?.user)?.toString();
+      return entryUserId === userId.toString();
+    });
+
+    if (!requestEntry) {
+      return res.status(404).json({ message: "Join request not found" });
+    }
+
+    requestEntry.status = normalizedAction === "approve" ? "approved" : "declined";
+
+    if (normalizedAction === "approve") {
+      const memberSet = new Set((group.members || []).map((member) => member.toString()));
+      if (!memberSet.has(userId.toString())) {
+        group.members.push(userId);
+      }
+    }
+
+    await group.save();
+
+    const updated = await Group.findById(groupId)
+      .populate("members", "fullName profilePic")
+      .populate("owner", "fullName profilePic")
+      .populate("joinRequests.user", "fullName profilePic");
+
+    const targetSocketIds = getReceiverSocketIds(userId.toString());
+    targetSocketIds.forEach((sid) => {
+      io.to(sid).emit("groupJoinRequestDecision", {
+        groupId: groupId.toString(),
+        action: normalizedAction,
+        status: requestEntry.status,
+        group: updated,
+      });
+    });
+
+    res.json({
+      message: normalizedAction === "approve" ? "Join request approved" : "Join request declined",
+      group: updated,
+      action: normalizedAction,
+    });
+  } catch (err) {
+    console.log("handleJoinRequestDecision:", err.message);
     res.status(500).json({ message: "Internal server error" });
   }
 };

@@ -6,7 +6,7 @@ const groupSchema = new mongoose.Schema({
   members: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
   joinRequests: [{
     user: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
-    status: { type: String, enum: ["pending", "approved"], default: "pending" },
+    status: { type: String, enum: ["pending", "approved", "declined"], default: "pending" },
     requestedAt: { type: Date, default: Date.now },
   }],
   avatar: { type: String, default: "" },

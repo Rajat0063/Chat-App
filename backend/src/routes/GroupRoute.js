@@ -12,6 +12,7 @@ import {
   deleteGroup,
   markGroupMessagesSeen,
   requestJoinGroup,
+  handleJoinRequestDecision,
 } from "../controllers/GroupController.js";
 
 const router = express.Router();
@@ -25,6 +26,7 @@ router.post("/:id/send", protectRoute, sendGroupMessage);
 router.post("/:id/update", protectRoute, updateGroup);
 router.post("/:id/members", protectRoute, addGroupMembers);
 router.post("/:id/request-join", protectRoute, requestJoinGroup);
+router.post("/:id/join-requests/:userId", protectRoute, handleJoinRequestDecision);
 router.post("/:id/leave", protectRoute, leaveGroup);
 router.delete("/:id/conversation", protectRoute, deleteGroupConversation);
 

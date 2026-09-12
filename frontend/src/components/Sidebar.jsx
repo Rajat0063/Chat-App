@@ -51,8 +51,23 @@ const Sidebar = React.memo(function Sidebar() {
     return Math.max(0, Number(raw) || 0);
   };
 
+  const isMemberOfGroup = (group) => Boolean(
+    group?.isMember ||
+    group?.isOwner ||
+    (Array.isArray(group?.members) && group.members.some((member) => toIdStr(member?._id || member) === myUserId))
+  );
+
   const directUnreadTotal = safeUsers.reduce((sum, user) => sum + getUnread(user), 0);
-  const groupUnreadTotal = safeGroups.reduce((sum, group) => sum + getUnread(group), 0);
+  const groupUnreadTotal = safeGroups.reduce((sum, group) => {
+    const isMember = isMemberOfGroup(group);
+    if (!isMember) return sum;
+
+    const isOwner = Boolean(group?.isOwner);
+    const pendingCount = Number(group?.pendingRequestsCount || 0);
+    const messageCount = getUnread(group);
+    const effectiveCount = isOwner && pendingCount > 0 ? pendingCount : messageCount;
+    return sum + effectiveCount;
+  }, 0);
   const totalUnread = directUnreadTotal + groupUnreadTotal;
 
   const trimmedSearch = searchQuery.trim().toLowerCase();
@@ -64,12 +79,6 @@ const Sidebar = React.memo(function Sidebar() {
       || u.about?.toLowerCase().includes(trimmedSearch);
     return matchesOnline && matchesSearch;
   }), [safeUsers, safeOnlineUsers, showOnlineOnly, trimmedSearch]);
-
-  const isMemberOfGroup = (group) => Boolean(
-    group?.isMember ||
-    group?.isOwner ||
-    (Array.isArray(group?.members) && group.members.some((member) => toIdStr(member?._id || member) === myUserId))
-  );
 
   const filteredGroups = useMemo(() => safeGroups
     .filter((g) => isMemberOfGroup(g))
@@ -222,7 +231,8 @@ const Sidebar = React.memo(function Sidebar() {
               const isSelected = toIdStr(selectedGroup?._id) === gId;
               const gTypers = (gId && typingUsers[gId]) || {};
               const gTypingCount = Object.keys(gTypers).length;
-              const unreadCount = getUnread(g);
+              const pendingRequestCount = Number(g.pendingRequestsCount || 0);
+              const unreadCount = g.isOwner && pendingRequestCount > 0 ? pendingRequestCount : getUnread(g);
               const hasUnread = unreadCount > 0;
               const isMember = Boolean(g.isMember || g.isOwner || (Array.isArray(g.members) && g.members.some((member) => toIdStr(member?._id || member) === myUserId)));
               const joinRequestStatus = g.joinRequestStatus || (Array.isArray(g.joinRequests) ? (g.joinRequests.find((entry) => toIdStr(entry?.user?._id || entry?.user) === myUserId)?.status || null) : null);
@@ -264,7 +274,9 @@ const Sidebar = React.memo(function Sidebar() {
                           ? "Request pending"
                           : !isMember
                             ? "Tap to request access"
-                            : (unreadCount > 0 ? `${unreadCount} new message${unreadCount > 1 ? "s" : ""}` : g.description || "Group discussion")}
+                            : (g.isOwner && pendingRequestCount > 0
+                              ? `${pendingRequestCount} join request${pendingRequestCount > 1 ? "s" : ""} pending`
+                              : (unreadCount > 0 ? `${unreadCount} new message${unreadCount > 1 ? "s" : ""}` : g.description || "Group discussion"))}
                       </p>
                     )}
                   </div>

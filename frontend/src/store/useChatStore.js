@@ -419,6 +419,24 @@ export const useChatStore = create((set, get) => ({
     }
   },
 
+  handleJoinRequestDecision: async (groupId, userId, action) => {
+    try {
+      const res = await axiosInstance.post(`/groups/${groupId}/join-requests/${userId}`, { action });
+      const currentGroups = Array.isArray(get().groups) ? get().groups : [];
+      const nextGroups = currentGroups.map((group) => {
+        if (toIdStr(group._id) !== toIdStr(groupId)) return group;
+        const incomingPendingCount = Number(res.data?.group?.pendingRequestsCount ?? group.pendingRequestsCount ?? 0);
+        return { ...group, ...(res.data?.group || {}), pendingRequestsCount: incomingPendingCount };
+      });
+      set({ groups: nextGroups, selectedGroup: nextGroups.find((group) => toIdStr(group._id) === toIdStr(groupId)) || get().selectedGroup });
+      toast.success(res.data?.message || "Join request updated");
+      return res.data;
+    } catch (err) {
+      toast.error(err?.response?.data?.message || "Failed to update join request");
+      return null;
+    }
+  },
+
   createGroup: async (payload) => {
     try {
       const res = await axiosInstance.post("/groups", payload);

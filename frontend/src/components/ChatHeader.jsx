@@ -17,6 +17,7 @@ export default function ChatHeader() {
   const leaveGroup = useChatStore((state) => state.leaveGroup);
   const addGroupMembers = useChatStore((state) => state.addGroupMembers);
   const updateGroup = useChatStore((state) => state.updateGroup);
+  const handleJoinRequestDecision = useChatStore((state) => state.handleJoinRequestDecision);
   const deleteGroupConversation = useChatStore((state) => state.deleteGroupConversation);
   const deleteGroup = useChatStore((state) => state.deleteGroup);
   const users = useChatStore((state) => state.users);
@@ -135,6 +136,7 @@ export default function ChatHeader() {
 
   const groupMemberIds = new Set((selectedGroup?.members || []).map((member) => typeof member === "string" ? member : member._id?.toString()));
   const availableUsers = users.filter((user) => !groupMemberIds.has(user._id?.toString()));
+  const pendingJoinRequests = (selectedGroup?.joinRequests || []).filter((entry) => String(entry?.status || "").toLowerCase() === "pending");
 
   useEffect(() => {
     if (!menuOpen) return setMenuPos(null);
@@ -512,6 +514,54 @@ export default function ChatHeader() {
                         })}
                       </div>
                     </div>
+
+                    {isGroupOwner && pendingJoinRequests.length > 0 && (
+                      <div className="p-3.5 rounded-2xl bg-primary/5 border border-primary/20 space-y-3">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[11px] font-semibold text-primary uppercase tracking-wider">
+                            Join Requests ({pendingJoinRequests.length})
+                          </span>
+                          <span className="badge badge-primary badge-xs rounded-full">{pendingJoinRequests.length}</span>
+                        </div>
+                        <div className="space-y-2">
+                          {pendingJoinRequests.map((entry) => {
+                            const user = entry?.user;
+                            const userId = toIdStr(user?._id || user);
+                            const userName = user?.fullName || "New user";
+                            const avatar = user?.profilePic || "/avatar.png";
+                            return (
+                              <div key={userId} className="flex items-center gap-2.5 rounded-xl bg-base-100/80 border border-base-300/80 p-2">
+                                <img src={avatar} alt={userName} className="size-9 rounded-full object-cover border border-base-300" />
+                                <div className="flex-1 min-w-0">
+                                  <div className="text-xs font-semibold text-base-content truncate">{userName}</div>
+                                  <div className="text-[10px] text-base-content/60">Wants to join this group</div>
+                                </div>
+                                <div className="flex items-center gap-1.5">
+                                  <button
+                                    type="button"
+                                    onClick={async () => {
+                                      await handleJoinRequestDecision(selectedGroup._id, userId, "approve");
+                                    }}
+                                    className="btn btn-xs btn-success rounded-lg px-2 min-h-7 h-7"
+                                  >
+                                    Accept
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={async () => {
+                                      await handleJoinRequestDecision(selectedGroup._id, userId, "decline");
+                                    }}
+                                    className="btn btn-xs btn-error rounded-lg px-2 min-h-7 h-7"
+                                  >
+                                    Decline
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
                   </>
                 )}
               </div>
