@@ -7,7 +7,22 @@ import { useChatStore, toIdStr } from "../store/useChatStore.js";
 import { useThemeStore } from "../store/useThemeStore.js";
 
 export default function ChatHeader() {
-  const { selectedUser, selectedGroup, setSelectedUser, setSelectedGroup, blockedUsers, toggleBlockUser, deleteConversation, leaveGroup, addGroupMembers, updateGroup, deleteGroupConversation, deleteGroup, users, typingUsers, isChatSearchOpen, setChatSearchOpen } = useChatStore();
+  const selectedUser = useChatStore((state) => state.selectedUser);
+  const selectedGroup = useChatStore((state) => state.selectedGroup);
+  const setSelectedUser = useChatStore((state) => state.setSelectedUser);
+  const setSelectedGroup = useChatStore((state) => state.setSelectedGroup);
+  const blockedUsers = useChatStore((state) => state.blockedUsers);
+  const toggleBlockUser = useChatStore((state) => state.toggleBlockUser);
+  const deleteConversation = useChatStore((state) => state.deleteConversation);
+  const leaveGroup = useChatStore((state) => state.leaveGroup);
+  const addGroupMembers = useChatStore((state) => state.addGroupMembers);
+  const updateGroup = useChatStore((state) => state.updateGroup);
+  const deleteGroupConversation = useChatStore((state) => state.deleteGroupConversation);
+  const deleteGroup = useChatStore((state) => state.deleteGroup);
+  const users = useChatStore((state) => state.users);
+  const typingUsers = useChatStore((state) => state.typingUsers);
+  const isChatSearchOpen = useChatStore((state) => state.isChatSearchOpen);
+  const setChatSearchOpen = useChatStore((state) => state.setChatSearchOpen);
   const { onlineUsers, authUser } = useAuthStore();
   const { theme } = useThemeStore();
   const [menuOpen, setMenuOpen] = useState(false);

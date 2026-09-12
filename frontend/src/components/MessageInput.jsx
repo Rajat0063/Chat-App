@@ -12,7 +12,11 @@ export default function MessageInput() {
   const isTypingRef = useRef(false);
   const lastTypingEmitRef = useRef(0);
   const typingTimeoutRef = useRef(null);
-  const { sendMessage, sendTypingStart, sendTypingStop, selectedUser, selectedGroup } = useChatStore();
+  const sendMessage = useChatStore((state) => state.sendMessage);
+  const sendTypingStart = useChatStore((state) => state.sendTypingStart);
+  const sendTypingStop = useChatStore((state) => state.sendTypingStop);
+  const selectedUser = useChatStore((state) => state.selectedUser);
+  const selectedGroup = useChatStore((state) => state.selectedGroup);
 
   const currentConvId = toIdStr(selectedUser?._id || selectedGroup?._id);
 

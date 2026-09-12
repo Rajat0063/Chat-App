@@ -5,7 +5,8 @@ import ChatContainer from "../components/ChatContainer.jsx";
 import { useChatStore } from "../store/useChatStore.js";
 
 export default function HomePage() {
-  const { selectedUser, selectedGroup } = useChatStore();
+  const selectedUser = useChatStore((state) => state.selectedUser);
+  const selectedGroup = useChatStore((state) => state.selectedGroup);
 
   return (
     <div className="h-[calc(100vh-4rem)] bg-base-200/60 p-2 sm:p-4 md:p-6 overflow-hidden">

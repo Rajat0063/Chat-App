@@ -1,13 +1,24 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { Users, Search, Plus, UserCheck, MessageSquare, Radio, X } from "lucide-react";
 import { useChatStore, toIdStr } from "../store/useChatStore.js";
 import { useAuthStore } from "../store/useAuthStore.js";
 import SidebarSkeleton from "./skeletons/SidebarSkeleton.jsx";
 
-export default function Sidebar() {
-  const { getUsers, users, selectedUser, setSelectedUser, isUsersLoading, typingUsers, unreadCounts, initGlobalSocketListeners } = useChatStore();
-  const { getGroups, groups, setSelectedGroup, selectedGroup, createGroup } = useChatStore();
+const Sidebar = React.memo(function Sidebar() {
+  const getUsers = useChatStore((state) => state.getUsers);
+  const users = useChatStore((state) => state.users);
+  const selectedUser = useChatStore((state) => state.selectedUser);
+  const setSelectedUser = useChatStore((state) => state.setSelectedUser);
+  const isUsersLoading = useChatStore((state) => state.isUsersLoading);
+  const typingUsers = useChatStore((state) => state.typingUsers);
+  const unreadCounts = useChatStore((state) => state.unreadCounts);
+  const initGlobalSocketListeners = useChatStore((state) => state.initGlobalSocketListeners);
+  const getGroups = useChatStore((state) => state.getGroups);
+  const groups = useChatStore((state) => state.groups);
+  const setSelectedGroup = useChatStore((state) => state.setSelectedGroup);
+  const selectedGroup = useChatStore((state) => state.selectedGroup);
+  const createGroup = useChatStore((state) => state.createGroup);
   const { onlineUsers, authUser, socket } = useAuthStore();
 
   const [searchQuery, setSearchQuery] = useState("");
@@ -44,20 +55,20 @@ export default function Sidebar() {
 
   const trimmedSearch = searchQuery.trim().toLowerCase();
 
-  const filteredUsers = safeUsers.filter((u) => {
+  const filteredUsers = useMemo(() => safeUsers.filter((u) => {
     const matchesOnline = showOnlineOnly ? safeOnlineUsers.includes(u._id) : true;
     const matchesSearch = !trimmedSearch || u.fullName?.toLowerCase().includes(trimmedSearch)
       || u.email?.toLowerCase().includes(trimmedSearch)
       || u.about?.toLowerCase().includes(trimmedSearch);
     return matchesOnline && matchesSearch;
-  });
+  }), [safeUsers, safeOnlineUsers, showOnlineOnly, trimmedSearch]);
 
-  const filteredGroups = safeGroups.filter((g) => {
+  const filteredGroups = useMemo(() => safeGroups.filter((g) => {
     if (!trimmedSearch) return true;
     return g.name?.toLowerCase().includes(trimmedSearch)
       || g.description?.toLowerCase().includes(trimmedSearch)
       || g.members?.some((member) => (member?.fullName || member?.name || "").toLowerCase().includes(trimmedSearch));
-  });
+  }), [safeGroups, trimmedSearch]);
 
   if (isUsersLoading) return <SidebarSkeleton />;
 
@@ -455,5 +466,7 @@ export default function Sidebar() {
       )}
     </aside>
   );
-}
+});
+
+export default Sidebar;
 

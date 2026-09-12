@@ -71,9 +71,11 @@ const appendUniqueMessage = (messages, nextMessage) => {
 };
 
 const typingTimeouts = {};
+const getConversationKey = (type, id) => `${type}:${toIdStr(id)}`;
 
 export const useChatStore = create((set, get) => ({
   messages: [],
+  conversationMessages: {},
   users: [],
   groups: [],
   selectedUser: null,
@@ -270,24 +272,50 @@ export const useChatStore = create((set, get) => ({
   },
 
   getMessages: async (userId) => {
+    const key = getConversationKey("user", userId);
+    const cached = get().conversationMessages[key];
+    if (cached && Array.isArray(cached)) {
+      set({ messages: cached });
+      return cached;
+    }
+
     set({ isMessagesLoading: true });
     try {
       const res = await axiosInstance.get(`/messages/${userId}`);
-      set({ messages: Array.isArray(res.data) ? res.data : (Array.isArray(res.data?.messages) ? res.data.messages : []) });
+      const nextMessages = Array.isArray(res.data) ? res.data : (Array.isArray(res.data?.messages) ? res.data.messages : []);
+      set((state) => ({
+        messages: toIdStr(state.selectedUser?._id) === toIdStr(userId) ? nextMessages : state.messages,
+        conversationMessages: { ...state.conversationMessages, [key]: nextMessages },
+      }));
+      return nextMessages;
     } catch (err) {
       toast.error(err?.response?.data?.message || "Failed to load messages");
       set({ messages: [] });
+      return [];
     } finally { set({ isMessagesLoading: false }); }
   },
 
   getGroupMessages: async (groupId) => {
+    const key = getConversationKey("group", groupId);
+    const cached = get().conversationMessages[key];
+    if (cached && Array.isArray(cached)) {
+      set({ messages: cached });
+      return cached;
+    }
+
     set({ isMessagesLoading: true });
     try {
       const res = await axiosInstance.get(`/groups/${groupId}/messages`);
-      set({ messages: Array.isArray(res.data) ? res.data : (Array.isArray(res.data?.messages) ? res.data.messages : []) });
+      const nextMessages = Array.isArray(res.data) ? res.data : (Array.isArray(res.data?.messages) ? res.data.messages : []);
+      set((state) => ({
+        messages: toIdStr(state.selectedGroup?._id) === toIdStr(groupId) ? nextMessages : state.messages,
+        conversationMessages: { ...state.conversationMessages, [key]: nextMessages },
+      }));
+      return nextMessages;
     } catch (err) {
       toast.error(err?.response?.data?.message || "Failed to load messages");
       set({ messages: [] });
+      return [];
     } finally { set({ isMessagesLoading: false }); }
   },
 
@@ -451,7 +479,12 @@ export const useChatStore = create((set, get) => ({
       }
 
       if (isSelectedConversation) {
-        set({ messages: appendUniqueMessage(get().messages, newMessage) });
+        const updatedMessages = appendUniqueMessage(get().messages, newMessage);
+        const key = getConversationKey("user", selectedId);
+        set((state) => ({
+          messages: updatedMessages,
+          conversationMessages: { ...state.conversationMessages, [key]: updatedMessages },
+        }));
       }
 
       if (isSelectedConversation && myId && msgSenderId === selectedId) {
@@ -547,7 +580,12 @@ export const useChatStore = create((set, get) => ({
       }
 
       if (!isInSelectedGroup && !isFromMe) return;
-      set({ messages: appendUniqueMessage(get().messages, newMessage) });
+      const updatedMessages = appendUniqueMessage(get().messages, newMessage);
+      const key = getConversationKey("group", currentGroupId);
+      set((state) => ({
+        messages: updatedMessages,
+        conversationMessages: { ...state.conversationMessages, [key]: updatedMessages },
+      }));
 
       if (myId && !isFromMe && isInSelectedGroup) {
         socket.emit("markGroupAsRead", { groupId: currentGroupId, readerId: myId });
@@ -600,14 +638,21 @@ export const useChatStore = create((set, get) => ({
   setSelectedUser: (user) => {
     get().sendTypingStop();
     const socket = useAuthStore.getState().socket;
-    set({ selectedUser: user, selectedGroup: null });
+    const nextUserId = user ? toIdStr(user._id) : "";
+    set((state) => ({
+      selectedUser: user,
+      selectedGroup: null,
+      messages: user ? (state.conversationMessages[getConversationKey("user", nextUserId)] ?? []) : [],
+    }));
     if (user) {
-      const uId = toIdStr(user._id);
-      get().clearUnreadCount(uId);
+      get().clearUnreadCount(nextUserId);
       if (socket && socket.connected) {
-        socket.emit("enterChat", { type: "direct", id: uId });
+        socket.emit("enterChat", { type: "direct", id: nextUserId });
       }
-      get().markMessagesAsRead(uId);
+      get().markMessagesAsRead(nextUserId);
+      if (!get().conversationMessages[getConversationKey("user", nextUserId)]) {
+        get().getMessages(nextUserId);
+      }
     } else {
       if (socket && socket.connected) {
         socket.emit("leaveChat");
@@ -617,14 +662,21 @@ export const useChatStore = create((set, get) => ({
   setSelectedGroup: (group) => {
     get().sendTypingStop();
     const socket = useAuthStore.getState().socket;
-    set({ selectedGroup: group, selectedUser: null });
+    const nextGroupId = group ? toIdStr(group._id) : "";
+    set((state) => ({
+      selectedGroup: group,
+      selectedUser: null,
+      messages: group ? (state.conversationMessages[getConversationKey("group", nextGroupId)] ?? []) : [],
+    }));
     if (group) {
-      const gId = toIdStr(group._id);
-      get().clearUnreadCount(gId);
+      get().clearUnreadCount(nextGroupId);
       if (socket && socket.connected) {
-        socket.emit("enterChat", { type: "group", id: gId });
+        socket.emit("enterChat", { type: "group", id: nextGroupId });
       }
-      get().markGroupMessagesAsRead(gId);
+      get().markGroupMessagesAsRead(nextGroupId);
+      if (!get().conversationMessages[getConversationKey("group", nextGroupId)]) {
+        get().getGroupMessages(nextGroupId);
+      }
     } else {
       if (socket && socket.connected) {
         socket.emit("leaveChat");
