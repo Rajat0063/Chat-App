@@ -12,6 +12,27 @@ export const toIdStr = (id) => {
   return String(id);
 };
 
+const getMessageReactions = (message) => {
+  if (!message || !message.reactions || typeof message.reactions !== "object") return {};
+  return message.reactions;
+};
+
+const updateReactionMap = (reactions, emoji, userId) => {
+  const next = { ...(reactions || {}) };
+  const currentUsers = Array.isArray(next[emoji]) ? next[emoji].map(toIdStr) : [];
+  const cleanedUsers = currentUsers.filter(Boolean);
+  const hasUser = cleanedUsers.includes(toIdStr(userId));
+
+  if (hasUser) {
+    next[emoji] = cleanedUsers.filter((id) => id !== toIdStr(userId));
+    if (!next[emoji].length) delete next[emoji];
+    return next;
+  }
+
+  next[emoji] = [...cleanedUsers, toIdStr(userId)];
+  return next;
+};
+
 const appendUniqueMessage = (messages, nextMessage) => {
   if (!nextMessage) return messages;
   const list = Array.isArray(messages) ? messages : [];
@@ -108,17 +129,36 @@ export const useChatStore = create((set, get) => ({
     unreadCounts: { ...state.unreadCounts, [toIdStr(id)]: 0 },
   })),
   updateMessageReactions: (messageId, reactions) => set((state) => {
+    const targetId = toIdStr(messageId);
     const nextMessages = (Array.isArray(state.messages) ? state.messages : []).map((message) => {
       const currentId = toIdStr(message._id || message.clientTempId);
-      const targetId = toIdStr(messageId);
       return currentId === targetId ? { ...message, reactions: reactions || {} } : message;
     });
 
     const nextConversationMessages = Object.fromEntries(Object.entries(state.conversationMessages || {}).map(([key, items]) => {
       const mapped = Array.isArray(items) ? items.map((message) => {
         const currentId = toIdStr(message._id || message.clientTempId);
-        const targetId = toIdStr(messageId);
         return currentId === targetId ? { ...message, reactions: reactions || {} } : message;
+      }) : items;
+      return [key, mapped];
+    }));
+
+    return {
+      messages: nextMessages,
+      conversationMessages: nextConversationMessages,
+    };
+  }),
+  updatePinnedMessage: (messageId, payload) => set((state) => {
+    const targetId = toIdStr(messageId);
+    const nextMessages = (Array.isArray(state.messages) ? state.messages : []).map((message) => {
+      const currentId = toIdStr(message._id || message.clientTempId);
+      return currentId === targetId ? { ...message, ...(payload || {}), isPinned: Boolean(payload?.isPinned ?? message.isPinned) } : message;
+    });
+
+    const nextConversationMessages = Object.fromEntries(Object.entries(state.conversationMessages || {}).map(([key, items]) => {
+      const mapped = Array.isArray(items) ? items.map((message) => {
+        const currentId = toIdStr(message._id || message.clientTempId);
+        return currentId === targetId ? { ...message, ...(payload || {}), isPinned: Boolean(payload?.isPinned ?? message.isPinned) } : message;
       }) : items;
       return [key, mapped];
     }));
@@ -133,21 +173,65 @@ export const useChatStore = create((set, get) => ({
     const socket = useAuthStore.getState().socket;
     const authUser = useAuthStore.getState().authUser;
     if (!authUser) return;
+    const meId = toIdStr(authUser._id);
+
+    const findExistingReactions = () => {
+      const currentState = get();
+      const directMessage = (Array.isArray(currentState.messages) ? currentState.messages : []).find((m) => toIdStr(m._id || m.clientTempId) === toIdStr(messageId));
+      if (directMessage) return getMessageReactions(directMessage);
+      for (const items of Object.values(currentState.conversationMessages || {})) {
+        const match = (Array.isArray(items) ? items : []).find((m) => toIdStr(m._id || m.clientTempId) === toIdStr(messageId));
+        if (match) return getMessageReactions(match);
+      }
+      return {};
+    };
+
+    const previousReactions = findExistingReactions();
+    const optimisticReactions = updateReactionMap(previousReactions, emoji, meId);
+    get().updateMessageReactions(messageId, optimisticReactions);
+
+    if (socket && socket.connected) {
+      socket.emit("messageReactionUpdated", {
+        messageId: toIdStr(messageId),
+        reactions: optimisticReactions,
+        reactedBy: meId,
+        emoji,
+      });
+    }
 
     try {
       const res = await axiosInstance.post(`/messages/reaction/${messageId}`, { emoji });
-      const nextReactions = res.data?.reactions || res.data?.message?.reactions || {};
+      const nextReactions = res.data?.reactions || res.data?.message?.reactions || optimisticReactions;
       get().updateMessageReactions(messageId, nextReactions);
-      if (socket && socket.connected) {
-        socket.emit("messageReactionUpdated", {
-          messageId: toIdStr(messageId),
-          reactions: nextReactions,
-          reactedBy: toIdStr(authUser._id),
-          emoji,
+    } catch (err) {
+      get().updateMessageReactions(messageId, previousReactions);
+      toast.error(err?.response?.data?.message || "Failed to add reaction");
+    }
+  },
+  togglePinMessage: async (messageId, duration = "7d") => {
+    if (!messageId) return;
+    try {
+      const res = await axiosInstance.post(`/messages/pin/${messageId}`, { duration });
+      const updatedMessage = res.data?.updatedMessage || res.data?.data || res.data?.message || null;
+      if (updatedMessage) {
+        get().updatePinnedMessage(messageId, {
+          ...updatedMessage,
+          isPinned: Boolean(updatedMessage.isPinned),
         });
       }
+      if (useAuthStore.getState().socket?.connected) {
+        useAuthStore.getState().socket.emit("messagePinUpdated", {
+          messageId: toIdStr(messageId),
+          isPinned: Boolean(updatedMessage?.isPinned),
+          message: updatedMessage,
+          updatedMessage,
+        });
+      }
+      toast.success(updatedMessage?.isPinned ? "Message pinned." : "Pin removed.");
+      return res.data;
     } catch (err) {
-      toast.error(err?.response?.data?.message || "Failed to add reaction");
+      toast.error(err?.response?.data?.message || "Failed to update pin status");
+      return null;
     }
   },
 
@@ -518,10 +602,36 @@ export const useChatStore = create((set, get) => ({
     socket.off("messagesDelivered");
     socket.off("groupMessagesRead");
     socket.off("messageReactionUpdated");
+    socket.off("messagePinUpdated");
 
-    socket.on("messageReactionUpdated", ({ messageId, reactions }) => {
+    socket.on("messageReactionUpdated", ({ messageId, reactions, reactedBy, senderId, receiverId, groupId }) => {
       if (!messageId || !reactions) return;
       get().updateMessageReactions(messageId, reactions);
+
+      const authUser = useAuthStore.getState().authUser;
+      const myId = toIdStr(authUser?._id);
+      const actorId = toIdStr(reactedBy);
+      if (!myId || !actorId || actorId === myId) return;
+
+      const directTargetId = toIdStr(senderId === myId ? receiverId : senderId);
+      const targetConversationId = toIdStr(groupId || directTargetId);
+      if (!targetConversationId) return;
+
+      const selectedUser = get().selectedUser;
+      const selectedGroup = get().selectedGroup;
+      const selectedId = selectedUser ? toIdStr(selectedUser._id) : selectedGroup ? toIdStr(selectedGroup._id) : "";
+      if (selectedId === targetConversationId) {
+        get().clearUnreadCount(targetConversationId);
+        return;
+      }
+
+      const nextCount = Number(get().unreadCounts[targetConversationId] || 0) + 1;
+      get().setUnreadCount(targetConversationId, nextCount);
+    });
+
+    socket.on("messagePinUpdated", ({ messageId, updatedMessage, isPinned }) => {
+      if (!messageId) return;
+      get().updatePinnedMessage(messageId, updatedMessage || { isPinned: Boolean(isPinned) });
     });
 
     socket.on("newMessage", (newMessage) => {

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
-import { MessageSquare, Sparkles, Check, CheckCheck, Clock, ChevronDown } from "lucide-react";
+import { MessageSquare, Sparkles, Check, CheckCheck, Clock, ChevronDown, Pin, PinOff } from "lucide-react";
 
 const QUICK_REACTIONS = ["❤️", "👍", "😂", "🎉"];
 import ChatHeader from "./ChatHeader.jsx";
@@ -25,6 +25,7 @@ export default function ChatContainer() {
     markMessagesAsRead,
     markGroupMessagesAsRead,
     toggleMessageReaction,
+    togglePinMessage,
     isChatSearchOpen,
     chatSearchQuery,
     setChatSearchOpen,
@@ -133,6 +134,10 @@ export default function ChatContainer() {
   const handleReactionClick = (messageId, emoji) => {
     toggleMessageReaction(messageId, emoji);
     setReactionPickerFor(null);
+  };
+
+  const handlePinToggle = (messageId, isPinned) => {
+    togglePinMessage(messageId, isPinned ? "forever" : "7d");
   };
 
   const scrollToBottom = useCallback((behavior = "smooth") => {
@@ -482,6 +487,26 @@ export default function ChatContainer() {
                       ? "ring-2 ring-amber-300/70 shadow-md"
                       : ""}`}
                 >
+                  {m.isPinned && (
+                    <div className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide opacity-80">
+                      <Pin className="size-3" />
+                      <span>Pinned</span>
+                    </div>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      handlePinToggle(m._id || m.clientTempId, Boolean(m.isPinned));
+                    }}
+                    className="absolute right-2 top-2 z-10 inline-flex h-6 w-6 items-center justify-center rounded-full bg-base-100/20 text-current transition hover:bg-base-100/30"
+                    aria-label={m.isPinned ? "Unpin message" : "Pin message"}
+                    title={m.isPinned ? "Unpin message" : "Pin message"}
+                  >
+                    {m.isPinned ? <PinOff className="size-3.5" /> : <Pin className="size-3.5" />}
+                  </button>
+
                   {m.image && (
                     <div className="relative group overflow-hidden rounded-xl">
                       <img
