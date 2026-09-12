@@ -19,6 +19,7 @@ const Sidebar = React.memo(function Sidebar() {
   const setSelectedGroup = useChatStore((state) => state.setSelectedGroup);
   const selectedGroup = useChatStore((state) => state.selectedGroup);
   const createGroup = useChatStore((state) => state.createGroup);
+  const requestJoinGroup = useChatStore((state) => state.requestJoinGroup);
   const { onlineUsers, authUser, socket } = useAuthStore();
 
   const [searchQuery, setSearchQuery] = useState("");
@@ -42,6 +43,7 @@ const Sidebar = React.memo(function Sidebar() {
   const safeUsers = Array.isArray(users) ? users : [];
   const safeOnlineUsers = Array.isArray(onlineUsers) ? onlineUsers : [];
   const counts = unreadCounts || {};
+  const myUserId = toIdStr(authUser?._id);
   const getUnread = (item) => {
     if (!item) return 0;
     const id = (item._id?._id || item._id)?.toString();
@@ -63,12 +65,20 @@ const Sidebar = React.memo(function Sidebar() {
     return matchesOnline && matchesSearch;
   }), [safeUsers, safeOnlineUsers, showOnlineOnly, trimmedSearch]);
 
-  const filteredGroups = useMemo(() => safeGroups.filter((g) => {
-    if (!trimmedSearch) return true;
-    return g.name?.toLowerCase().includes(trimmedSearch)
-      || g.description?.toLowerCase().includes(trimmedSearch)
-      || g.members?.some((member) => (member?.fullName || member?.name || "").toLowerCase().includes(trimmedSearch));
-  }), [safeGroups, trimmedSearch]);
+  const isMemberOfGroup = (group) => Boolean(
+    group?.isMember ||
+    group?.isOwner ||
+    (Array.isArray(group?.members) && group.members.some((member) => toIdStr(member?._id || member) === myUserId))
+  );
+
+  const filteredGroups = useMemo(() => safeGroups
+    .filter((g) => isMemberOfGroup(g))
+    .filter((g) => {
+      if (!trimmedSearch) return true;
+      return g.name?.toLowerCase().includes(trimmedSearch)
+        || g.description?.toLowerCase().includes(trimmedSearch)
+        || g.members?.some((member) => (member?.fullName || member?.name || "").toLowerCase().includes(trimmedSearch));
+    }), [safeGroups, trimmedSearch, myUserId]);
 
   if (isUsersLoading) return <SidebarSkeleton />;
 
@@ -214,10 +224,19 @@ const Sidebar = React.memo(function Sidebar() {
               const gTypingCount = Object.keys(gTypers).length;
               const unreadCount = getUnread(g);
               const hasUnread = unreadCount > 0;
+              const isMember = Boolean(g.isMember || g.isOwner || (Array.isArray(g.members) && g.members.some((member) => toIdStr(member?._id || member) === myUserId)));
+              const joinRequestStatus = g.joinRequestStatus || (Array.isArray(g.joinRequests) ? (g.joinRequests.find((entry) => toIdStr(entry?.user?._id || entry?.user) === myUserId)?.status || null) : null);
               return (
                 <button
                   key={g._id}
-                  onClick={() => setSelectedGroup(g)}
+                  onClick={() => {
+                    if (!isMember) {
+                      if (joinRequestStatus === "pending") return;
+                      requestJoinGroup(g._id);
+                      return;
+                    }
+                    setSelectedGroup(g);
+                  }}
                   className={`w-full p-2.5 flex items-center gap-3 rounded-xl transition-all duration-150 text-left relative ${
                     isSelected
                       ? "bg-primary/10 text-primary font-semibold border-l-4 border-primary shadow-xs"
@@ -241,7 +260,11 @@ const Sidebar = React.memo(function Sidebar() {
                       </p>
                     ) : (
                       <p className="text-xs text-base-content/60 truncate font-normal">
-                        {unreadCount > 0 ? `${unreadCount} new message${unreadCount > 1 ? "s" : ""}` : g.description || "Group discussion"}
+                        {!isMember && joinRequestStatus === "pending"
+                          ? "Request pending"
+                          : !isMember
+                            ? "Tap to request access"
+                            : (unreadCount > 0 ? `${unreadCount} new message${unreadCount > 1 ? "s" : ""}` : g.description || "Group discussion")}
                       </p>
                     )}
                   </div>

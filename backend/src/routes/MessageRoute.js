@@ -6,6 +6,7 @@ import {
   sendMessage,
   toggleBlockUser,
   deleteConversation,
+  deleteMessage,
   togglePinMessage,
   markMessagesSeen,
   toggleMessageReaction,
@@ -18,6 +19,7 @@ router.get("/:id", protectRoute, getMessages);
 router.post("/send/:id", protectRoute, sendMessage);
 router.post("/block/:id", protectRoute, toggleBlockUser);
 router.delete("/conversation/:id", protectRoute, deleteConversation);
+router.post("/delete/:id", protectRoute, deleteMessage);
 router.post("/pin/:id", protectRoute, togglePinMessage);
 router.post("/reaction/:id", protectRoute, toggleMessageReaction);
 router.post("/mark-seen/:id", protectRoute, markMessagesSeen);

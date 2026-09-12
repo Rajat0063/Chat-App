@@ -295,6 +295,66 @@ export const toggleMessageReaction = async (req, res) => {
   }
 };
 
+export const deleteMessage = async (req, res) => {
+  try {
+    const { id: messageId } = req.params;
+    const { mode = "forMe" } = req.body || {};
+    const me = req.user._id;
+    const meStr = (me?._id || me)?.toString();
+
+    const message = await Message.findById(messageId);
+    if (!message) return res.status(404).json({ message: "Message not found" });
+
+    const isSender = message.senderId && ((message.senderId.equals ? message.senderId.equals(me) : message.senderId.toString() === meStr));
+    const isReceiver = message.receiverId && ((message.receiverId.equals ? message.receiverId.equals(me) : message.receiverId.toString() === meStr));
+    const canModify = isSender || isReceiver || Boolean(message.groupId);
+    if (!canModify) {
+      return res.status(403).json({ message: "You cannot delete this message" });
+    }
+
+    const safeMode = mode === "forEveryone" ? "forEveryone" : "forMe";
+    const payload = {
+      messageId: message._id.toString(),
+      mode: safeMode,
+      deletedBy: meStr,
+      groupId: message.groupId ? message.groupId.toString() : null,
+      senderId: message.senderId ? message.senderId.toString() : null,
+      receiverId: message.receiverId ? message.receiverId.toString() : null,
+    };
+
+    if (safeMode === "forEveryone") {
+      await Message.findByIdAndDelete(messageId);
+    } else {
+      const deletedFor = Array.isArray(message.deletedFor) ? message.deletedFor.map((id) => (id && id.toString ? id.toString() : String(id))) : [];
+      if (!deletedFor.includes(meStr)) {
+        message.deletedFor = [...deletedFor, meStr];
+        await message.save();
+      }
+    }
+
+    if (message.groupId) {
+      const group = await Group.findById(message.groupId).catch(() => null);
+      if (group && Array.isArray(group.members)) {
+        group.members.forEach((memberId) => {
+          const sids = getReceiverSocketIds(memberId.toString());
+          sids.forEach((sid) => io.to(sid).emit("messageDeleted", payload));
+        });
+      }
+    } else {
+      const participants = [message.senderId, message.receiverId].filter(Boolean).map((id) => (id && id.toString ? id.toString() : String(id)));
+      participants.forEach((participantId) => {
+        const sids = getReceiverSocketIds(participantId);
+        sids.forEach((sid) => io.to(sid).emit("messageDeleted", payload));
+      });
+    }
+
+    res.json({ success: true, messageId: message._id.toString(), mode: safeMode });
+  } catch (err) {
+    console.error("deleteMessage:", err.message);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
 export const togglePinMessage = async (req, res) => {
   try {
     const { id: messageId } = req.params;

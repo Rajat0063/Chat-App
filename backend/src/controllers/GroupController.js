@@ -27,11 +27,26 @@ export const getGroupsForUser = async (req, res) => {
   try {
     const me = req.user._id;
     const meStr = (me?._id || me)?.toString();
-    const groups = await Group.find({
-      members: { $in: [me, meStr] },
-    })
+    const groups = await Group.find({})
       .populate("members", "fullName profilePic")
-      .populate("owner", "fullName profilePic");
+      .populate("owner", "fullName profilePic")
+      .populate("joinRequests.user", "fullName profilePic");
+
+    const visibleGroups = (groups || []).map((group) => {
+      const members = (group.members || []).map((member) => (member?._id || member)?.toString());
+      const isMember = members.includes(meStr);
+      const isOwner = (group.owner?._id || group.owner)?.toString() === meStr;
+      const joinRequest = (group.joinRequests || []).find((entry) => {
+        const userId = (entry?.user?._id || entry?.user)?.toString();
+        return userId === meStr;
+      });
+      return {
+        ...group.toObject(),
+        isMember,
+        isOwner,
+        joinRequestStatus: joinRequest?.status || null,
+      };
+    });
 
     const groupIds = (groups || []).map((g) => g._id);
     const unreadGroupMessages = await Message.find({
@@ -49,7 +64,7 @@ export const getGroupsForUser = async (req, res) => {
       }
     });
 
-    res.json({ groups, unreadCounts });
+    res.json({ groups: visibleGroups, unreadCounts });
   } catch (err) {
     console.log("getGroupsForUser:", err.message);
     res.status(500).json({ message: "Internal server error" });
@@ -142,6 +157,47 @@ export const markGroupMessagesSeen = async (req, res) => {
   }
 };
 
+export const requestJoinGroup = async (req, res) => {
+  try {
+    const me = req.user._id;
+    const { id: groupId } = req.params;
+    const group = await Group.findById(groupId);
+    if (!group) return res.status(404).json({ message: "Group not found" });
+
+    const meStr = me.toString();
+    const isMember = (group.members || []).some((member) => member.toString() === meStr);
+    if (isMember) return res.status(400).json({ message: "You are already a member of this group" });
+
+    const existingRequest = (group.joinRequests || []).find((entry) => {
+      const userId = (entry?.user?._id || entry?.user)?.toString();
+      return userId === meStr;
+    });
+
+    if (existingRequest) {
+      return res.status(200).json({
+        message: "Join request already pending",
+        group: { ...group.toObject(), joinRequestStatus: existingRequest.status },
+      });
+    }
+
+    group.joinRequests = [...(group.joinRequests || []), { user: me, status: "pending" }];
+    await group.save();
+
+    const populated = await Group.findById(groupId)
+      .populate("members", "fullName profilePic")
+      .populate("owner", "fullName profilePic")
+      .populate("joinRequests.user", "fullName profilePic");
+
+    res.status(200).json({
+      message: "Join request sent",
+      group: { ...populated.toObject(), joinRequestStatus: "pending" },
+    });
+  } catch (err) {
+    console.log("requestJoinGroup:", err.message);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
 export const updateGroup = async (req, res) => {
   try {
     const { id: groupId } = req.params;
@@ -149,7 +205,8 @@ export const updateGroup = async (req, res) => {
     const me = req.user._id;
     const group = await Group.findById(groupId);
     if (!group) return res.status(404).json({ message: "Group not found" });
-    if (!group.owner.equals(me)) return res.status(403).json({ message: "Only the group owner can update name or avatar" });
+    const isAdmin = group.owner && group.owner.toString() === me.toString();
+    if (!isAdmin) return res.status(403).json({ message: "Only the group admin can update name or avatar" });
 
     if (typeof name === "string" && name.trim().length) group.name = name.trim();
     if (typeof avatar === "string" && avatar.length) group.avatar = avatar;
@@ -181,7 +238,8 @@ export const addGroupMembers = async (req, res) => {
     const me = req.user._id;
     const group = await Group.findById(groupId);
     if (!group) return res.status(404).json({ message: "Group not found" });
-    if (!group.members.some((m) => m.equals(me))) return res.status(403).json({ message: "Not a group member" });
+    const isAdmin = group.owner && group.owner.toString() === me.toString();
+    if (!isAdmin) return res.status(403).json({ message: "Only the group admin can add members" });
 
     if (!Array.isArray(members) || members.length === 0)
       return res.status(400).json({ message: "No members provided" });
@@ -287,7 +345,8 @@ export const deleteGroup = async (req, res) => {
     const { id: groupId } = req.params;
     const group = await Group.findById(groupId).populate("members", "_id");
     if (!group) return res.status(404).json({ message: "Group not found" });
-    if (!group.owner.equals(me)) return res.status(403).json({ message: "Only the group owner can delete the group" });
+    const isAdmin = group.owner && group.owner.toString() === me.toString();
+    if (!isAdmin) return res.status(403).json({ message: "Only the group admin can delete the group" });
 
     // notify members that the group was deleted
     (group.members || []).forEach((member) => {

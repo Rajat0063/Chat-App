@@ -62,6 +62,15 @@ if (process.env.NODE_ENV === "production") {
   });
 }
 
+server.on("error", (err) => {
+  if (err.code === "EADDRINUSE") {
+    console.error(`❌ Port ${PORT} is already in use. Please stop the existing backend or use a different PORT.`);
+    process.exit(1);
+  }
+  console.error("❌ Server startup error:", err);
+  process.exit(1);
+});
+
 server.listen(PORT, () => {
   console.log(`🚀 Server running on http://localhost:${PORT}`);
   connectDB();

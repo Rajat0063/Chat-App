@@ -25,6 +25,7 @@ export default function ChatContainer() {
     markMessagesAsRead,
     markGroupMessagesAsRead,
     toggleMessageReaction,
+    deleteMessage,
     togglePinMessage,
     isChatSearchOpen,
     chatSearchQuery,
@@ -39,6 +40,8 @@ export default function ChatContainer() {
   const messageList = Array.isArray(messages) ? messages : [];
   const [currentMatchIndex, setCurrentMatchIndex] = useState(0);
   const [reactionPickerFor, setReactionPickerFor] = useState(null);
+  const [messageMenuFor, setMessageMenuFor] = useState(null);
+  const [deleteMenuFor, setDeleteMenuFor] = useState(null);
   const longPressTimer = useRef(null);
   const matchingMessages = useMemo(() => {
     const query = chatSearchQuery.trim().toLowerCase();
@@ -46,6 +49,10 @@ export default function ChatContainer() {
     return messageList.filter((message) => message.text?.toLowerCase().includes(query));
   }, [messageList, chatSearchQuery]);
   const currentMatch = matchingMessages[currentMatchIndex];
+  const pinnedMessage = useMemo(() => {
+    if (!Array.isArray(messageList)) return null;
+    return [...messageList].reverse().find((message) => Boolean(message.isPinned)) || null;
+  }, [messageList]);
 
   // Auto-scroll state: track if user manually scrolled up
   const [isScrolledUp, setIsScrolledUp] = useState(false);
@@ -74,18 +81,23 @@ export default function ChatContainer() {
 
   useEffect(() => {
     const handlePointerDown = (event) => {
-      if (!reactionPickerFor) return;
       const target = event.target;
       const isInsidePicker = target instanceof Element && target.closest("[data-reaction-picker]");
       const isInsideBubble = target instanceof Element && target.closest("[data-message-bubble]");
-      if (!isInsidePicker && !isInsideBubble) {
+      const isInsideMessageMenu = target instanceof Element && target.closest("[data-message-menu]");
+      const isActionButton = target instanceof Element && target.closest("[data-message-action-trigger]");
+
+      if (!reactionPickerFor && !messageMenuFor && !deleteMenuFor) return;
+      if (!isInsidePicker && !isInsideBubble && !isInsideMessageMenu && !isActionButton) {
         closeReactionPicker();
+        setMessageMenuFor(null);
+        setDeleteMenuFor(null);
       }
     };
 
     window.addEventListener("pointerdown", handlePointerDown);
     return () => window.removeEventListener("pointerdown", handlePointerDown);
-  }, [reactionPickerFor, closeReactionPicker]);
+  }, [reactionPickerFor, messageMenuFor, deleteMenuFor, closeReactionPicker]);
 
   useEffect(() => {
     const handleKeyDown = (event) => {
@@ -136,8 +148,16 @@ export default function ChatContainer() {
     setReactionPickerFor(null);
   };
 
+  const handleDeleteMessage = async (messageId, mode = "forMe") => {
+    await deleteMessage(messageId, mode);
+    setMessageMenuFor(null);
+    setDeleteMenuFor(null);
+  };
+
   const handlePinToggle = (messageId, isPinned) => {
     togglePinMessage(messageId, isPinned ? "forever" : "7d");
+    setMessageMenuFor(null);
+    setDeleteMenuFor(null);
   };
 
   const scrollToBottom = useCallback((behavior = "smooth") => {
@@ -418,6 +438,27 @@ export default function ChatContainer() {
         onScroll={handleScroll}
         className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-2.5 sm:p-4 md:p-6 space-y-3 sm:space-y-4"
       >
+        {pinnedMessage && (
+          <div className="sticky top-0 z-10 mb-2 rounded-2xl border border-primary/20 bg-primary/5 px-3 py-2 shadow-sm backdrop-blur-sm">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex min-w-0 items-center gap-2 text-[11px] font-semibold text-primary">
+                <Pin className="size-3.5" />
+                <span>Pinned message</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => document.getElementById(`msg-${pinnedMessage._id || pinnedMessage.clientTempId}`)?.scrollIntoView({ behavior: "smooth", block: "center" })}
+                className="text-[10px] font-semibold uppercase tracking-wide text-primary/80 hover:text-primary"
+              >
+                Jump
+              </button>
+            </div>
+            <p className="mt-1 line-clamp-2 text-xs text-base-content/75">
+              {pinnedMessage.text || "Attachment"}
+            </p>
+          </div>
+        )}
+
         {messageList.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center text-center p-8 space-y-3">
             <div className="size-14 rounded-2xl bg-primary/10 flex items-center justify-center text-primary">
@@ -487,12 +528,66 @@ export default function ChatContainer() {
                       ? "ring-2 ring-amber-300/70 shadow-md"
                       : ""}`}
                 >
+                  {messageMenuFor === (m._id || m.clientTempId) && (
+                    <div data-message-menu className="absolute -top-12 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1 rounded-full border border-base-300 bg-base-100/95 p-1 shadow-lg backdrop-blur-sm">
+                      <button
+                        type="button"
+                        onClick={() => handlePinToggle(m._id || m.clientTempId, Boolean(m.isPinned))}
+                        className="rounded-full px-2 py-1 text-[10px] font-semibold text-base-content hover:bg-base-200"
+                      >
+                        {m.isPinned ? "Unpin" : "Pin"}
+                      </button>
+                      <div className="relative">
+                        <button
+                          type="button"
+                          onClick={() => setDeleteMenuFor((current) => (current === (m._id || m.clientTempId) ? null : (m._id || m.clientTempId)))}
+                          className="rounded-full px-2 py-1 text-[10px] font-semibold text-base-content hover:bg-base-200"
+                        >
+                          Delete
+                        </button>
+                        {deleteMenuFor === (m._id || m.clientTempId) && (
+                          <div className="absolute left-1/2 top-full z-30 mt-2 w-32 -translate-x-1/2 rounded-xl border border-base-300 bg-base-100 p-1.5 shadow-xl">
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteMessage(m._id || m.clientTempId, "forMe")}
+                              className="w-full rounded-lg px-2 py-1.5 text-left text-[11px] text-base-content hover:bg-base-200"
+                            >
+                              Delete for you
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteMessage(m._id || m.clientTempId, "forEveryone")}
+                              className="mt-1 w-full rounded-lg px-2 py-1.5 text-left text-[11px] text-base-content hover:bg-base-200"
+                            >
+                              Delete for everyone
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
                   {m.isPinned && (
                     <div className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide opacity-80">
                       <Pin className="size-3" />
                       <span>Pinned</span>
                     </div>
                   )}
+
+                  <button
+                    type="button"
+                    data-message-action-trigger
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setMessageMenuFor((current) => (current === (m._id || m.clientTempId) ? null : (m._id || m.clientTempId)));
+                      setDeleteMenuFor(null);
+                    }}
+                    className={`message-action-trigger absolute top-1/2 z-10 inline-flex -translate-y-1/2 items-center justify-center text-base-content/70 transition-all duration-300 ${mine ? "-left-9" : "-right-9"}`}
+                    aria-label="Message actions"
+                    title="Message actions"
+                  >
+                    <MoreHorizontal className="size-4" />
+                  </button>
 
                   {m.image && (
                     <div className="relative group overflow-hidden rounded-xl">
@@ -556,18 +651,6 @@ export default function ChatContainer() {
 
                 {/* Chat Footer with Timestamp & Delivery/Read Checkmark Indicators */}
                 <div className="chat-footer text-[11px] text-base-content/60 flex items-center gap-1.5 mt-1 px-1 font-medium select-none">
-                  <button
-                    type="button"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      handlePinToggle(m._id || m.clientTempId, Boolean(m.isPinned));
-                    }}
-                    className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-base-300/70 bg-base-100/80 text-base-content/70 transition hover:text-primary hover:border-primary/50"
-                    aria-label={m.isPinned ? "Unpin message" : "Pin message"}
-                    title={m.isPinned ? "Unpin message" : "Pin message"}
-                  >
-                    {m.isPinned ? <PinOff className="size-3" /> : <MoreHorizontal className="size-3" />}
-                  </button>
                   {mine && <time>{formatMessageTime(m.createdAt)}</time>}
                   {mine && renderStatusIndicator(m)}
                 </div>

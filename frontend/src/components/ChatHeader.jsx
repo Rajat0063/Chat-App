@@ -478,16 +478,16 @@ export default function ChatHeader() {
                         )}
                       </div>
                       {!isGroupOwner && (
-                        <p className="text-[11px] text-base-content/50 mt-1">Only owner can rename group.</p>
+                        <p className="text-[11px] text-base-content/50 mt-1">Only admin can rename group.</p>
                       )}
                     </div>
 
                     <div className="p-3.5 rounded-2xl bg-base-200/50 border border-base-300/80">
                       <span className="text-[11px] font-semibold text-base-content/50 uppercase tracking-wider block mb-1">
-                        Group Owner
+                        Group Admin
                       </span>
                       <p className="text-sm font-medium text-base-content">
-                        {selectedGroup?.owner?.fullName || "Group owner"}
+                        {selectedGroup?.owner?.fullName || "Group admin"}
                       </p>
                     </div>
 
@@ -505,7 +505,7 @@ export default function ChatHeader() {
                               <img src={avatar} alt={name} className="size-8 rounded-full object-cover border border-base-300" />
                               <span className="text-xs font-semibold text-base-content truncate flex-1">{name}</span>
                               {selectedGroup?.owner?._id?.toString() === id && (
-                                <span className="text-[10px] px-2 py-0.5 rounded-md bg-primary/10 text-primary font-bold">Owner</span>
+                                <span className="text-[10px] px-2 py-0.5 rounded-md bg-primary/10 text-primary font-bold">Admin</span>
                               )}
                             </div>
                           );
@@ -560,7 +560,7 @@ export default function ChatHeader() {
                     <div className="text-left flex-1 min-w-0">
                       <div className="font-semibold text-sm truncate">{name}</div>
                       <div className="text-xs text-base-content/60">
-                        {selectedGroup.owner?._id?.toString() === id ? "Owner" : "Member"}
+                        {selectedGroup.owner?._id?.toString() === id ? "Admin" : "Member"}
                       </div>
                     </div>
                   </div>

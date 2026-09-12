@@ -12,7 +12,7 @@ import { axiosInstance } from "../lib/axios.js";
 
 export default function NoChatSelected() {
   const { authUser, onlineUsers } = useAuthStore();
-  const { users, groups, setSelectedUser, setSelectedGroup } = useChatStore();
+  const { users, groups, setSelectedUser, setSelectedGroup, requestJoinGroup } = useChatStore();
 
   const [activeTab, setActiveTab] = useState("overview"); // overview, notes, feedback
   const [searchTerm, setSearchTerm] = useState("");
@@ -117,6 +117,15 @@ export default function NoChatSelected() {
   const filteredGroups = groups.filter((g) =>
     g.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  const isGroupMember = (group) => {
+    const myId = authUser?._id?.toString();
+    return Boolean(
+      group?.isMember ||
+      group?.isOwner ||
+      (Array.isArray(group?.members) && group.members.some((member) => (member?._id || member)?.toString() === myId))
+    );
+  };
 
   return (
     <div className="w-full min-w-0 flex flex-1 flex-col p-2.5 sm:p-6 lg:p-8 bg-gradient-to-b from-base-100/60 via-base-100 to-base-200/40 overflow-y-auto">
@@ -301,28 +310,51 @@ export default function NoChatSelected() {
                 <div className="space-y-2 pt-2 border-t border-base-200">
                   <div className="text-xs font-bold text-base-content/70 uppercase tracking-wider">Group Rooms ({filteredGroups.length})</div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {filteredGroups.map((g) => (
-                      <div
-                        key={g._id}
-                        onClick={() => setSelectedGroup(g)}
-                        className="flex items-center justify-between p-3 rounded-xl bg-base-200/40 hover:bg-base-200 border border-base-300/60 cursor-pointer transition-all group"
-                      >
-                        <div className="flex items-center gap-3 min-w-0">
-                          <div className="size-10 rounded-xl bg-indigo-500/10 text-indigo-500 flex items-center justify-center font-bold text-sm border border-indigo-500/20">
-                            <Users className="size-5" />
+                    {filteredGroups.map((g) => {
+                      const isMember = isGroupMember(g);
+                      const joinRequestStatus = g.joinRequestStatus || (Array.isArray(g.joinRequests) ? (g.joinRequests.find((entry) => (entry?.user?._id || entry?.user)?.toString() === authUser?._id?.toString())?.status || null) : null);
+                      return (
+                        <div
+                          key={g._id}
+                          onClick={() => {
+                            if (isMember) {
+                              setSelectedGroup(g);
+                              return;
+                            }
+                            if (joinRequestStatus !== "pending") {
+                              requestJoinGroup(g._id);
+                            }
+                          }}
+                          className="flex items-center justify-between p-3 rounded-xl bg-base-200/40 hover:bg-base-200 border border-base-300/60 cursor-pointer transition-all group"
+                        >
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className="size-10 rounded-xl bg-indigo-500/10 text-indigo-500 flex items-center justify-center font-bold text-sm border border-indigo-500/20">
+                              <Users className="size-5" />
+                            </div>
+                            <div className="truncate">
+                              <div className="font-bold text-xs truncate group-hover:text-indigo-500 transition-colors">{g.name}</div>
+                              <div className="text-[10px] text-base-content/60 truncate">{g.members?.length || 1} members</div>
+                            </div>
                           </div>
-                          <div className="truncate">
-                            <div className="font-bold text-xs truncate group-hover:text-indigo-500 transition-colors">{g.name}</div>
-                            <div className="text-[10px] text-base-content/60 truncate">{g.members?.length || 1} members</div>
-                          </div>
-                        </div>
 
-                        <button className="btn btn-xs btn-outline btn-secondary rounded-lg">
-                          <span>Join</span>
-                          <ArrowRight className="size-3" />
-                        </button>
-                      </div>
-                    ))}
+                          <button
+                            type="button"
+                            className={`btn btn-xs rounded-lg ${joinRequestStatus === "pending" ? "btn-disabled bg-base-300 text-base-content/50" : "btn-outline btn-secondary"}`}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              if (isMember) {
+                                setSelectedGroup(g);
+                                return;
+                              }
+                              if (joinRequestStatus !== "pending") requestJoinGroup(g._id);
+                            }}
+                          >
+                            <span>{isMember ? "Open" : joinRequestStatus === "pending" ? "Requested" : "Join"}</span>
+                            <ArrowRight className="size-3" />
+                          </button>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               )}

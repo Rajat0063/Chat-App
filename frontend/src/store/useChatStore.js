@@ -168,6 +168,34 @@ export const useChatStore = create((set, get) => ({
       conversationMessages: nextConversationMessages,
     };
   }),
+  removeMessageById: (messageId) => set((state) => {
+    const targetId = toIdStr(messageId);
+    const filterMessages = (items) => (Array.isArray(items) ? items.filter((message) => toIdStr(message._id || message.clientTempId) !== targetId) : items);
+    return {
+      messages: filterMessages(state.messages),
+      conversationMessages: Object.fromEntries(
+        Object.entries(state.conversationMessages || {}).map(([key, items]) => [key, filterMessages(items)])
+      ),
+    };
+  }),
+  deleteMessage: async (messageId, mode = "forMe") => {
+    if (!messageId) return null;
+    try {
+      const res = await axiosInstance.post(`/messages/delete/${messageId}`, { mode });
+      get().removeMessageById(messageId);
+      if (useAuthStore.getState().socket?.connected) {
+        useAuthStore.getState().socket.emit("messageDeleted", {
+          messageId: toIdStr(messageId),
+          mode: res.data?.mode || mode,
+        });
+      }
+      toast.success(mode === "forEveryone" ? "Message deleted for everyone." : "Message deleted for you.");
+      return res.data;
+    } catch (err) {
+      toast.error(err?.response?.data?.message || "Failed to delete message");
+      return null;
+    }
+  },
   toggleMessageReaction: async (messageId, emoji) => {
     if (!messageId || !emoji) return;
     const socket = useAuthStore.getState().socket;
@@ -371,6 +399,23 @@ export const useChatStore = create((set, get) => ({
     } catch (err) {
       toast.error(err?.response?.data?.message || "Failed to load groups");
       set({ groups: [] });
+    }
+  },
+
+  requestJoinGroup: async (groupId) => {
+    try {
+      const res = await axiosInstance.post(`/groups/${groupId}/request-join`);
+      const currentGroups = Array.isArray(get().groups) ? get().groups : [];
+      const nextGroups = currentGroups.map((group) => {
+        if (toIdStr(group._id) !== toIdStr(groupId)) return group;
+        return { ...group, joinRequestStatus: "pending", isMember: false };
+      });
+      set({ groups: nextGroups });
+      toast.success(res.data?.message || "Join request sent");
+      return res.data;
+    } catch (err) {
+      toast.error(err?.response?.data?.message || "Failed to request join");
+      return null;
     }
   },
 
@@ -603,6 +648,12 @@ export const useChatStore = create((set, get) => ({
     socket.off("groupMessagesRead");
     socket.off("messageReactionUpdated");
     socket.off("messagePinUpdated");
+    socket.off("messageDeleted");
+
+    socket.on("messageDeleted", ({ messageId }) => {
+      if (!messageId) return;
+      get().removeMessageById(messageId);
+    });
 
     socket.on("messageReactionUpdated", ({ messageId, reactions, reactedBy, senderId, receiverId, groupId }) => {
       if (!messageId || !reactions) return;
