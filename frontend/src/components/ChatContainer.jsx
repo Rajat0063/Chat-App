@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
-import { MessageSquare, Sparkles, Check, CheckCheck, Clock, ChevronDown, Pin, PinOff } from "lucide-react";
+import { MessageSquare, Sparkles, Check, CheckCheck, Clock, ChevronDown, Pin, PinOff, MoreHorizontal } from "lucide-react";
 
 const QUICK_REACTIONS = ["❤️", "👍", "😂", "🎉"];
 import ChatHeader from "./ChatHeader.jsx";
@@ -494,19 +494,6 @@ export default function ChatContainer() {
                     </div>
                   )}
 
-                  <button
-                    type="button"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      handlePinToggle(m._id || m.clientTempId, Boolean(m.isPinned));
-                    }}
-                    className="absolute right-2 top-2 z-10 inline-flex h-6 w-6 items-center justify-center rounded-full bg-base-100/20 text-current transition hover:bg-base-100/30"
-                    aria-label={m.isPinned ? "Unpin message" : "Pin message"}
-                    title={m.isPinned ? "Unpin message" : "Pin message"}
-                  >
-                    {m.isPinned ? <PinOff className="size-3.5" /> : <Pin className="size-3.5" />}
-                  </button>
-
                   {m.image && (
                     <div className="relative group overflow-hidden rounded-xl">
                       <img
@@ -569,6 +556,18 @@ export default function ChatContainer() {
 
                 {/* Chat Footer with Timestamp & Delivery/Read Checkmark Indicators */}
                 <div className="chat-footer text-[11px] text-base-content/60 flex items-center gap-1.5 mt-1 px-1 font-medium select-none">
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      handlePinToggle(m._id || m.clientTempId, Boolean(m.isPinned));
+                    }}
+                    className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-base-300/70 bg-base-100/80 text-base-content/70 transition hover:text-primary hover:border-primary/50"
+                    aria-label={m.isPinned ? "Unpin message" : "Pin message"}
+                    title={m.isPinned ? "Unpin message" : "Pin message"}
+                  >
+                    {m.isPinned ? <PinOff className="size-3" /> : <MoreHorizontal className="size-3" />}
+                  </button>
                   {mine && <time>{formatMessageTime(m.createdAt)}</time>}
                   {mine && renderStatusIndicator(m)}
                 </div>
